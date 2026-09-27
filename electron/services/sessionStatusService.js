@@ -73,8 +73,9 @@ const STORE_KEY_ENABLED = 'sessionStatusEnabled'
  * @returns {Promise<boolean>}
  */
 async function pathExists(filePath) {
+  // 用 stat 不用 access：打包后模板目录在 app.asar 里，Electron 40 的 fs.access 查 asar 里的目录会报 ENOENT
   try {
-    await fs.access(filePath)
+    await fs.stat(filePath)
     return true
   } catch {
     return false

@@ -15,7 +15,7 @@ import { mkdir, mkdtemp, writeFile, readFile, readdir } from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { createRequire } from 'module'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const require = createRequire(import.meta.url)
 const { _private } = require('../electron/services/sessionStatusService')
@@ -265,6 +265,28 @@ describe('打开 / 关掉：临时 HOME 下的往返', () => {
     else process.env.CLAUDE_CONFIG_DIR = originalRoot
     for (const id of Object.keys(require.cache)) {
       if (/electron[\\/]services[\\/](sessionStatusService|claudeSettingsService)\.js$/.test(id)) delete require.cache[id]
+    }
+  })
+
+  it('打包后模板目录在 asar 里、fs.access 查目录报 ENOENT 时照样能打开（v2.0.0–v2.1.0 的 bug）', async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), 'ss-home-'))
+    delete process.env.CLAUDE_CONFIG_DIR
+    await mkdir(path.join(home, '.claude'), { recursive: true })
+    await writeFile(path.join(home, '.claude', 'settings.json'), JSON.stringify({ model: 'opus' }))
+    const fsp = require('fs/promises')
+    const realAccess = fsp.access.bind(fsp)
+    // 照 Electron 40 的 asar：目录用 access 查会报不存在，stat / readdir 正常
+    const spy = vi.spyOn(fsp, 'access').mockImplementation(async (p, mode) => {
+      if ((await fsp.stat(p)).isDirectory()) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      return realAccess(p, mode)
+    })
+    try {
+      const svc = loadFresh(home)
+      const on = await svc.installSessionStatus({ trustHooks: noTrust })
+      expect(on.success).toBe(true)
+      expect(await readdir(path.join(home, '.claude', 'k28-status-light'))).toContain('k28_status.sh')
+    } finally {
+      spy.mockRestore()
     }
   })
 

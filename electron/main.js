@@ -24,6 +24,8 @@ const dotenv = require('dotenv')
 const v17AllowMulti = !!process.env.ELECTRON_DEV_ALLOW_MULTI
 const v17SingleInstanceLock = v17AllowMulti ? true : app.requestSingleInstanceLock()
 if (!v17SingleInstanceLock) {
+  // 以前这里悄悄退出，开发时正式版开着会以为 npm run dev 坏了
+  console.error('[CodePal] 已经有一个 CodePal 在运行，本次启动退出。先退出正在运行的 CodePal；开发时要和它同时开，用 ELECTRON_DEV_ALLOW_MULTI=1 npm run dev')
   app.exit(0)
   // eslint-disable-next-line no-restricted-syntax
   return
