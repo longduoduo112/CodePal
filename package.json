@@ -64,6 +64,9 @@
         ]
       }
     },
+    "asarUnpack": [
+      "electron/modules/models/**"
+    ],
     "files": [
       "dist/**/*",
       "src/config/**/*.json",
