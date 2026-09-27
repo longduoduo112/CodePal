@@ -134,4 +134,12 @@ describe('模型名规则（PRD US-06，TC-F09 的主进程规则）', () => {
     expect(fs.existsSync(path.join(sb.models, 'status', 'deepseek__deepseek-v4-pro.json'))).toBe(false)
     expect(store.readKey('deepseek')).toBe(KEY)
   })
+
+  it('改名 A→B→A 后旧实例不算当前模型（Codex 审核第 2 轮 P2）', () => {
+    const before = store.readConfig().providers.deepseek.models[0]
+    store.updateModel('deepseek', 'deepseek-flash', { name: 'deepseek-v4-pro' })
+    store.updateModel('deepseek', 'deepseek-v4-pro', { name: 'deepseek-flash' })
+    expect(store.isCurrentModel('deepseek', before)).toBe(false)
+    expect(store.isCurrentModel('deepseek', store.readConfig().providers.deepseek.models[0])).toBe(true)
+  })
 })

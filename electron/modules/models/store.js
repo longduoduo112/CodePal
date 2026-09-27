@@ -220,6 +220,8 @@ function updateModel(providerId, modelId, patch = {}) {
     validateModelName(prov, name, model.id)
     next.name = name
     next.id = name
+    // 改名算新实例：A→B→A 之后，改名前发起的调用也不能写回
+    if (name !== model.name) next.uid = crypto.randomBytes(6).toString('hex')
   }
   if ('effort' in patch) {
     if (!EFFORTS.includes(patch.effort)) throw fail('invalid_input', '思考强度不对')
