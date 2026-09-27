@@ -212,6 +212,22 @@ describe('models:* 接口', () => {
     expect(fs.existsSync(path.join(sb.models, 'status', 'deepseek__deepseek-v4-pro.json'))).toBe(false)
   }, 20000)
 
+  it('旧配置（档位 xhigh、输出上限 384,000）照常读取、展示与启动（Codex 审核第 3 轮 P2）', async () => {
+    await call('models:setKey', { providerId: 'deepseek', key: KEY })
+    const cfg = store.readConfig()
+    Object.assign(cfg.providers.deepseek.models[0], { effort: 'xhigh', maxOutputTokens: 384000 })
+    store.writeConfig(cfg)
+    const list = await call('models:list')
+    expect(list.data.providers.deepseek.models[0]).toMatchObject({ effort: 'xhigh', maxOutputTokens: 384000 })
+    const { spawnSync } = await import('node:child_process')
+    const r = spawnSync(process.execPath, [path.join(REPO, 'electron/modules/models/cli.cjs'), 'launch', 'deepseek', 'deepseek-flash', '--', '--print'], { input: 'hi', env: { ...process.env, FAKE_CLAUDE_MODE: 'success' } })
+    expect(r.status).toBe(0)
+    const report = readReport(sb.report)
+    expect(JSON.parse(report.argv[report.argv.indexOf('--settings') + 1]).env).toMatchObject({ CLAUDE_CODE_EFFORT_LEVEL: 'xhigh', CLAUDE_CODE_MAX_OUTPUT_TOKENS: '384000' })
+    // 只改别的参数不受旧值拦截
+    expect((await call('models:updateModel', { providerId: 'deepseek', modelId: 'deepseek-flash', patch: { contextTokens: 500000 } })).success).toBe(true)
+  })
+
   it('TC-F11 改名、调参后下一次启动真的用新值', async () => {
     await call('models:setKey', { providerId: 'deepseek', key: KEY })
     expect((await call('models:updateModel', { providerId: 'deepseek', modelId: 'deepseek-flash', patch: { name: 'deepseek-v4-pro' } })).success).toBe(true)

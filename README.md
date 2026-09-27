@@ -2,7 +2,7 @@
 
 > AI 编程工具负责写代码，CodePal 负责写代码之外的一切 —— 用量与订阅、会话状态、对话回顾、新项目初始化与 Skills / Plugins 跨工具管理。专为 **Claude Code / Codex / Cursor / Trae** 用户打造。
 
-[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/yunshu0909/CodePal/releases) [![version](https://img.shields.io/badge/version-v2.0.0-blue)](https://github.com/yunshu0909/CodePal/releases/latest) [![license](https://img.shields.io/badge/license-ISC-green)](#license)
+[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/yunshu0909/CodePal/releases) [![version](https://img.shields.io/badge/version-v2.1.0-blue)](https://github.com/yunshu0909/CodePal/releases/latest) [![license](https://img.shields.io/badge/license-ISC-green)](#license)
 
 ---
 
@@ -92,6 +92,12 @@ CodePal 按用途分 4 组：**用量账单 · 项目开发 · 技能中心 · �
 - 默认启动模式，6 档：全自动 / 自动审批 / 自动编辑 / 每次询问 / 仅预先授权 / 只读规划，下次启动生效
 - 底部状态栏显示内容的设置
 
+#### 模型接入 · 用别家模型开 Claude Code（macOS）
+
+- 填好 DeepSeek 的 Key，点「测一下」就知道能不能用；可以加模型、改模型名，调思考强度和上下文 / 输出上限
+- 一键安装终端命令：敲 `codepal-deepseek-flash` 就是用 DeepSeek 开 Claude Code 写代码，CodePal 关着也能用；不改你的 Claude 配置，和会员版 Claude Code 可以同时开着
+- AI 在后台调用也走同一个命令（比如给另一个 AI 的代码做交叉审核），结果会回到页面上；对话回顾里这类会话会标出用的模型
+
 #### 网络诊断 · 出口 IP 变了第一时间知道
 
 查看当前出口 IP；可开后台监控，IP 变化或连续测不到时发系统通知，挂 VPN 时排查用。
@@ -179,16 +185,15 @@ skill-manager/
 
 完整版本信息见 [GitHub Releases](https://github.com/yunshu0909/CodePal/releases)。
 
-**最新版本：[v2.0.0](https://github.com/yunshu0909/CodePal/releases/tag/v2.0.0)**
+**最新版本：[v2.1.0](https://github.com/yunshu0909/CodePal/releases/tag/v2.1.0)**
 
-- 🎨 界面换成 macOS 原生风格：用量监测、订阅管理、会话状态、对话回顾、Claude Code 设置、网络诊断 6 页重做，窗口外壳与侧栏换新
-- 📅 用量监测改为月历，并接入 DeepSeek Harness 用量；「会员额度」改为订阅管理，看订阅值不值
-- 🔔 新增会话状态：Claude Code / Codex 干完活或等你确认时发系统通知
-- 🧩 Skills / Plugins 管理：分别查看、开关两个工具里的启用状态
-- 🛡️ 安全与稳定：Codex 配置改为按 TOML 语义读写、保留注释；文件操作按用途校验；退出时统一清理后台任务
-- 🧹 下线：MCP 管理、Codex 多账户切换、DeepSeek Harness 管理、满载率趋势；旧版本写进 Claude / Codex 配置的 MCP 条目会在首次启动时自动清理（先备份）
+- 🔌 新增「模型接入」（macOS）：填 DeepSeek 的 Key 就能用它开 Claude Code；一键装终端命令 `codepal-deepseek-flash`，CodePal 关着也能用，不改你的 Claude 配置
+- 🧪 「测一下」直接告诉你能不能用；失败时说清是 Key 无效、余额不足、模型名不对还是连不上
+- 🤖 AI 在后台调用别家模型也走同一个命令，结果回到页面上
+- 💬 对话回顾：用别家模型开的会话，详情里标出模型名
 
 之前的里程碑版本：
+- **v2.0.0** — 界面换成 macOS 原生风格；会话状态与订阅管理；配置写入更安全
 - **v1.9.11** — 修正 Codex 额度窗口口径
 - **v1.9.10** — 网络诊断默认零公网请求；新建项目使用托管 Coding 协议 v3.1
 - **v1.5.2** — 稳定版发布 + 配置打包兜底 + 对话回顾恢复链路
