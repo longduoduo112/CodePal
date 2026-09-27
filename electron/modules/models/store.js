@@ -17,7 +17,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
-const { PRESETS, EFFORTS, modelDefaults } = require('./presets')
+const { PRESETS, MAX_OUTPUT_CAP, modelDefaults } = require('./presets')
 
 const DIR_MODE = 0o700
 const FILE_MODE = 0o600
@@ -224,12 +224,13 @@ function updateModel(providerId, modelId, patch = {}) {
     if (name !== model.name) next.uid = crypto.randomBytes(6).toString('hex')
   }
   if ('effort' in patch) {
-    if (!EFFORTS.includes(patch.effort)) throw fail('invalid_input', '思考强度不对')
+    if (!presetOf(providerId).efforts.includes(patch.effort)) throw fail('invalid_input', '思考强度不对')
     next.effort = patch.effort
   }
   for (const k of ['contextTokens', 'maxOutputTokens']) {
     if (k in patch) {
       if (!positiveInt(patch[k])) throw fail('invalid_input', '填正整数')
+      if (k === 'maxOutputTokens' && patch[k] > MAX_OUTPUT_CAP) throw fail('invalid_input', '最多 128,000')
       next[k] = patch[k]
     }
   }

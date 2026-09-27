@@ -32,7 +32,7 @@ function Title({ preset }) {
 
 /**
  * @param {Object} props
- * @param {{id: string, name: string, type: string, color: string, keyPrefix: string}} props.preset
+ * @param {{id: string, name: string, type: string, color: string, keyPrefix: string, efforts: string[]}} props.preset
  * @param {{keySet: boolean, keyReadable: boolean, models: object[]}|null} props.provider - null = 首次读取中
  * @param {boolean} props.primaryKey - 卡头按钮是这一屏的主按钮
  * @param {boolean} props.blocked - Claude Code 没装或太旧
@@ -127,6 +127,7 @@ export default function ProviderCard({ preset, provider, primaryKey, blocked, te
           removing={removing.has(`${pid}__${m.id}`)}
           expanded={expanded.has(m.id)}
           otherNames={names.filter((n) => n !== m.name)}
+          efforts={preset.efforts}
           command={commandText(m.name, commands)}
           now={now}
           onToggle={() => toggle(m.id)}

@@ -7,14 +7,19 @@
  *
  * 数值来源：DeepSeek 官方定价页（2026-09-26 取数：deepseek-flash 上下文 1M、输出 384K）；
  * 自动压缩窗口沿用 Nexus 实测值（Nexus internal/domain/claude_profile.go:65-67）。
+ * 输出上限：Claude Code 发请求时 max_tokens 最多 128,000（2026-09-27 抓包实测，设更大也被压回），所以默认与上限都取 128,000。
+ * 思考强度：DeepSeek 只认 low / high / max，medium、xhigh 会被它当成 high（官方「思考模式」文档），所以只给三档。
  *
  * @module electron/modules/models/presets
  */
 
+/** Claude Code 请求里 max_tokens 的上限；输出上限不能超过它 */
+const MAX_OUTPUT_CAP = 128000
+
 const DEEPSEEK_DEFAULTS = Object.freeze({
   effort: 'max',
   contextTokens: 1000000,
-  maxOutputTokens: 384000,
+  maxOutputTokens: MAX_OUTPUT_CAP,
   autoCompactWindow: 786432,
 })
 
@@ -27,6 +32,8 @@ const PRESETS = Object.freeze({
     authEnv: 'ANTHROPIC_AUTH_TOKEN',
     keyPrefix: 'sk-',
     defaultModel: 'deepseek-flash',
+    // 这家真正区分的思考强度（照 Claude Code 原值，不翻译）
+    efforts: Object.freeze(['low', 'high', 'max']),
     defaults: DEEPSEEK_DEFAULTS,
     models: Object.freeze({
       'deepseek-flash': DEEPSEEK_DEFAULTS,
@@ -34,9 +41,6 @@ const PRESETS = Object.freeze({
     }),
   }),
 })
-
-/** 思考强度可选值（照 Claude Code 原值，不翻译） */
-const EFFORTS = Object.freeze(['low', 'medium', 'high', 'xhigh', 'max'])
 
 /**
  * 取某个模型的默认参数：预设里有就用它自己的，没有用这家的默认
@@ -49,4 +53,4 @@ function modelDefaults(preset, name) {
   return { ...(known ? preset.models[known] : preset.defaults) }
 }
 
-module.exports = { PRESETS, EFFORTS, modelDefaults }
+module.exports = { PRESETS, MAX_OUTPUT_CAP, modelDefaults }

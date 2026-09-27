@@ -21,8 +21,8 @@ import AboutDialog from './brand/AboutDialog'
 import UpdateDialog from './brand/UpdateDialog'
 import './brand/brand.css'
 
-// 只有 macOS 有系统毛玻璃；其他平台侧栏用纯灰底
-const IS_MAC = typeof navigator !== 'undefined' && /Macintosh|Mac OS X/.test(navigator.userAgent)
+/** 是否 macOS（渲染时读，测试可以换 userAgent） */
+const isMac = () => typeof navigator !== 'undefined' && /Macintosh|Mac OS X/.test(navigator.userAgent)
 
 /**
  * 工作台布局组件
@@ -82,11 +82,15 @@ function WorkbenchLayout({ children, activeModule, onModuleChange, appUpdate, on
       items: [
         // 'api' 供应商切换模块已断接线隔离（v1.9.8），代码在 _disabled/api-config/，恢复步骤见其 README
         { id: 'permission', label: 'Claude Code 设置' },
-        { id: 'models', label: '模型接入' },
+        // 终端命令是 macOS 的 shell 脚本，只在 Mac 上显示（#26 范围只做 macOS）
+        { id: 'models', label: '模型接入', macOnly: true },
         { id: 'network', label: '网络诊断' }
       ]
     }
   ]
+
+  // 只有 macOS 有系统毛玻璃（其他平台侧栏用纯灰底）；只在 Mac 上显示的导航项也按它过滤
+  const mac = isMac()
 
   /**
    * 处理导航项点击
@@ -99,7 +103,7 @@ function WorkbenchLayout({ children, activeModule, onModuleChange, appUpdate, on
   }
 
   return (
-    <div className={`workbench-layout${IS_MAC ? ' is-mac' : ''}`}>
+    <div className={`workbench-layout${mac ? ' is-mac' : ''}`}>
       {/* 左侧边栏：全高；macOS 上透出系统毛玻璃 */}
       <aside className="sidebar">
         {/* 红绿灯那一行：52 高，和新样式页面的工具栏同一行，可拖拽窗口 */}
@@ -116,7 +120,7 @@ function WorkbenchLayout({ children, activeModule, onModuleChange, appUpdate, on
           {navGroups.map((group) => (
             <div key={group.label} className="nav-group">
               <div className="nav-group-label">{group.label}</div>
-              {group.items.map((item) => {
+              {group.items.filter((item) => !item.macOnly || mac).map((item) => {
                 const icon = SIDEBAR_ICONS[item.id]
                 return (
                   <button

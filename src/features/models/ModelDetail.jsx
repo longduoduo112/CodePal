@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 import Button from '../../components/Button/Button'
 import { toast } from '../../components/Toast'
 import usePopoverDismiss from '../../hooks/usePopoverDismiss'
-import { EFFORTS, formatInt, modelNameError, parsePositiveInt } from './modelsView'
+import { MAX_OUTPUT_CAP, formatInt, modelNameError, parsePositiveInt } from './modelsView'
 
 const CHEV = <svg className="chev" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 4 5 2 7 4M3 6 5 8 7 6" /></svg>
 
@@ -83,12 +83,13 @@ function NameField({ model, otherNames, onSave }) {
 }
 
 /**
- * 上下文 / 输出上限：千分位显示，允许带千分位输入，只收正整数
- * @param {{label: string, field: string, value: number, onSave: Function}} props
+ * 上下文 / 输出上限：千分位显示，允许带千分位输入，只收正整数（有 max 时不能超过它）
+ * @param {{label: string, field: string, value: number, max?: number, onSave: Function}} props
  */
-function LimitField({ label, field, value, onSave }) {
+function LimitField({ label, field, value, max, onSave }) {
   const [draft, setDraft] = useState(formatInt(value))
-  const [error, setError] = useState(false)
+  // 红字：null 没错；否则是要显示的那句
+  const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { setDraft(formatInt(value)) }, [value])
@@ -96,10 +97,14 @@ function LimitField({ label, field, value, onSave }) {
   const commit = async () => {
     const n = parsePositiveInt(draft)
     if (n === null) {
-      setError(true)
+      setError('填正整数')
       return
     }
-    setError(false)
+    if (max && n > max) {
+      setError(`最多 ${formatInt(max)}`)
+      return
+    }
+    setError(null)
     if (n === value) {
       setDraft(formatInt(n))
       return
@@ -108,7 +113,7 @@ function LimitField({ label, field, value, onSave }) {
     const res = await onSave({ [field]: n })
     setSaving(false)
     if (res.ok) setDraft(formatInt(n))
-    else if (res.inline) setError(true)
+    else if (res.inline) setError(res.message || '填正整数')
     else setDraft(formatInt(value))
   }
 
@@ -116,7 +121,7 @@ function LimitField({ label, field, value, onSave }) {
     if (e.key === 'Enter') e.currentTarget.blur()
     if (e.key === 'Escape') {
       setDraft(formatInt(value))
-      setError(false)
+      setError(null)
     }
   }
 
@@ -124,7 +129,7 @@ function LimitField({ label, field, value, onSave }) {
     <div className="np-row np-kv mj-sub">
       <div className="lf">
         <div className="lb">{label}</div>
-        {error && <div className="ds bad">填正整数</div>}
+        {error && <div className="ds bad">{error}</div>}
       </div>
       <span className="np-in mj-w-num">
         <input
@@ -132,7 +137,7 @@ function LimitField({ label, field, value, onSave }) {
           inputMode="numeric"
           value={draft}
           disabled={saving}
-          aria-invalid={error}
+          aria-invalid={Boolean(error)}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={onKeyDown}
@@ -144,9 +149,9 @@ function LimitField({ label, field, value, onSave }) {
 
 /**
  * 思考强度：弹出按钮 + 下拉菜单，选中即保存
- * @param {{value: string, onSave: Function}} props
+ * @param {{value: string, efforts: string[], onSave: Function}} props
  */
-function EffortField({ value, onSave }) {
+function EffortField({ value, efforts, onSave }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const anchor = useRef(null)
@@ -176,19 +181,19 @@ function EffortField({ value, onSave }) {
           {value}
           {CHEV}
         </button>
-        {open && <EffortMenu value={value} anchorRef={anchor} onPick={pick} onClose={() => setOpen(false)} />}
+        {open && <EffortMenu value={value} efforts={efforts} anchorRef={anchor} onPick={pick} onClose={() => setOpen(false)} />}
       </span>
     </div>
   )
 }
 
 /** 思考强度下拉菜单；点外面、Esc 关闭 */
-function EffortMenu({ value, anchorRef, onPick, onClose }) {
+function EffortMenu({ value, efforts, anchorRef, onPick, onClose }) {
   const root = useRef(null)
   usePopoverDismiss(root, onClose, anchorRef)
   return (
     <div ref={root} className="np-menu mj-menu" role="menu">
-      {EFFORTS.map((effort) => (
+      {efforts.map((effort) => (
         <button key={effort} type="button" role="menuitemradio" aria-checked={effort === value} className="np-mitem" onClick={() => onPick(effort)}>
           <span className="tx"><b>{effort}</b></span>
           <span className="ck">{effort === value ? '✓' : ''}</span>
@@ -203,13 +208,14 @@ function EffortMenu({ value, anchorRef, onPick, onClose }) {
  * @param {Object} props
  * @param {object} props.model
  * @param {string[]} props.otherNames - 同一家其他模型的名字（重名校验）
+ * @param {string[]} props.efforts - 这家可选的思考强度
  * @param {string} props.command - 终端启动命令（不在 PATH 时是完整路径）
  * @param {boolean} props.removing
  * @param {(patch: object) => Promise<{ok: boolean, inline?: boolean, message?: string}>} props.onUpdate
  * @param {() => void} props.onRemove
  * @returns {JSX.Element}
  */
-export default function ModelDetail({ model, otherNames, command, removing, onUpdate, onRemove }) {
+export default function ModelDetail({ model, otherNames, efforts, command, removing, onUpdate, onRemove }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(command)
@@ -222,9 +228,9 @@ export default function ModelDetail({ model, otherNames, command, removing, onUp
   return (
     <>
       <NameField model={model} otherNames={otherNames} onSave={onUpdate} />
-      <EffortField value={model.effort} onSave={onUpdate} />
+      <EffortField value={model.effort} efforts={efforts} onSave={onUpdate} />
       <LimitField label="上下文上限" field="contextTokens" value={model.contextTokens} onSave={onUpdate} />
-      <LimitField label="输出上限" field="maxOutputTokens" value={model.maxOutputTokens} onSave={onUpdate} />
+      <LimitField label="输出上限" field="maxOutputTokens" value={model.maxOutputTokens} max={MAX_OUTPUT_CAP} onSave={onUpdate} />
       <div className="np-row np-kv mj-sub mj-cmdrow">
         <div className="lf">
           <div className="lb">终端启动</div>

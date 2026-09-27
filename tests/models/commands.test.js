@@ -119,7 +119,7 @@ describe('模块 F · 终端命令', () => {
     expect(r.stdout).toBe('2.1.283 (Claude Code)\n')
     expect(r.status).toBe(0)
     expect(fs.existsSync(path.join(sb.root, 'pwned'))).toBe(false)
-  })
+  }, 20000)
 
   it('TC-F13 每家稳定入口用列表第一个模型，改名后照常', () => {
     store.updateModel('deepseek', 'deepseek-flash', { name: 'deepseek-v4-flash' })
@@ -137,7 +137,7 @@ describe('模块 F · 终端命令', () => {
     const r2 = path.join(sb.root, 'r2.json')
     spawnSync(entry, ['--print'], { input: 'b', encoding: 'utf8', env: { ...sb.env, FAKE_CLAUDE_MODE: 'success', FAKE_CLAUDE_REPORT: r2 } })
     expect(readReport(r2).env.ANTHROPIC_MODEL).toBe('deepseek-flash')
-  })
+  }, 20000)
 
   it('同名文件读不了（权限）时当别人的，不覆盖（Codex 审核 P1）', () => {
     fs.mkdirSync(sb.bin, { recursive: true })

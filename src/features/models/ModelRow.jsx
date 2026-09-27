@@ -57,6 +57,7 @@ function Description({ state, model, providerName, now }) {
  * @param {boolean} props.removing
  * @param {boolean} props.expanded
  * @param {string[]} props.otherNames
+ * @param {string[]} props.efforts - 这家可选的思考强度
  * @param {string} props.command
  * @param {number} props.now
  * @param {() => void} props.onToggle
@@ -65,7 +66,7 @@ function Description({ state, model, providerName, now }) {
  * @param {() => void} props.onRemove
  * @returns {JSX.Element}
  */
-export default function ModelRow({ model, providerName, keyReadable, blocked, testing, removing, expanded, otherNames, command, now, onToggle, onTest, onUpdate, onRemove }) {
+export default function ModelRow({ model, providerName, keyReadable, blocked, testing, removing, expanded, otherNames, efforts, command, now, onToggle, onTest, onUpdate, onRemove }) {
   const state = rowState(model, keyReadable)
   const status = STATUS[state]
   const label = testing ? '测试中…' : state === 'bad' ? '重试' : '测一下'
@@ -99,7 +100,7 @@ export default function ModelRow({ model, providerName, keyReadable, blocked, te
         </div>
       </div>
       {expanded && (
-        <ModelDetail model={model} otherNames={otherNames} command={command} removing={removing} onUpdate={onUpdate} onRemove={onRemove} />
+        <ModelDetail model={model} otherNames={otherNames} efforts={efforts} command={command} removing={removing} onUpdate={onUpdate} onRemove={onRemove} />
       )}
     </>
   )

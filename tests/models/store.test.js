@@ -57,7 +57,7 @@ describe('模块 A · 存储', () => {
     store.setKey('deepseek', KEY)
     const models = store.readConfig().providers.deepseek.models
     expect(models).toHaveLength(1)
-    expect(models[0]).toMatchObject({ id: 'deepseek-flash', name: 'deepseek-flash', effort: 'max', contextTokens: 1000000, maxOutputTokens: 384000 })
+    expect(models[0]).toMatchObject({ id: 'deepseek-flash', name: 'deepseek-flash', effort: 'max', contextTokens: 1000000, maxOutputTokens: 128000 })
   })
 
   it('更换 Key 不重复加模型', () => {
@@ -141,5 +141,14 @@ describe('模型名规则（PRD US-06，TC-F09 的主进程规则）', () => {
     store.updateModel('deepseek', 'deepseek-v4-pro', { name: 'deepseek-flash' })
     expect(store.isCurrentModel('deepseek', before)).toBe(false)
     expect(store.isCurrentModel('deepseek', store.readConfig().providers.deepseek.models[0])).toBe(true)
+  })
+
+  it('输出上限最多 128,000；思考强度只收这家的三档（2026-09-27 实测后收紧）', () => {
+    expect(() => store.updateModel('deepseek', 'deepseek-flash', { maxOutputTokens: 128001 })).toThrow(expect.objectContaining({ code: 'invalid_input', message: '最多 128,000' }))
+    expect(store.updateModel('deepseek', 'deepseek-flash', { maxOutputTokens: 128000 })).toMatchObject({ maxOutputTokens: 128000 })
+    for (const effort of ['medium', 'xhigh']) {
+      expect(() => store.updateModel('deepseek', 'deepseek-flash', { effort })).toThrow(expect.objectContaining({ code: 'invalid_input' }))
+    }
+    expect(store.updateModel('deepseek', 'deepseek-flash', { effort: 'low' })).toMatchObject({ effort: 'low' })
   })
 })

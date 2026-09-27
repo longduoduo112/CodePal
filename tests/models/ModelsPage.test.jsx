@@ -32,7 +32,7 @@ const { confirmDialog } = await import('../../src/components/Modal/confirmDialog
 const { default: ModelsPage } = await import('../../src/features/models/ModelsPage')
 
 const WRITE_FAIL = '配置目录没有写入权限，检查权限后重试'
-const MODEL = { id: 'deepseek-flash', name: 'deepseek-flash', effort: 'max', contextTokens: 1000000, maxOutputTokens: 384000, lastResult: { ok: true, reason: null, at: '2026-09-26T12:38:00.000Z', source: 'test' } }
+const MODEL = { id: 'deepseek-flash', name: 'deepseek-flash', effort: 'max', contextTokens: 1000000, maxOutputTokens: 128000, lastResult: { ok: true, reason: null, at: '2026-09-26T12:38:00.000Z', source: 'test' } }
 const V4 = { ...MODEL, id: 'deepseek-v4-pro', name: 'deepseek-v4-pro', lastResult: null }
 
 /** §0「models:list 返回结构」 */
@@ -349,6 +349,8 @@ describe('模块 E · 添加、改名、参数', () => {
     const { api } = await renderPage()
     expand()
     fireEvent.click(screen.getByRole('button', { name: '思考强度' }))
+    // DeepSeek 只区分三档
+    expect(screen.getAllByRole('menuitemradio').map((b) => b.textContent.replace('✓', ''))).toEqual(['low', 'high', 'max'])
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'high' }))
     await waitFor(() => expect(api.modelsUpdateModel).toHaveBeenCalledWith({ providerId: 'deepseek', modelId: 'deepseek-flash', patch: { effort: 'high' } }))
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('已保存'))
@@ -372,6 +374,20 @@ describe('模块 E · 添加、改名、参数', () => {
     fireEvent.change(input, { target: { value: '1,048,576' } })
     fireEvent.blur(input)
     await waitFor(() => expect(api.modelsUpdateModel).toHaveBeenCalledWith({ providerId: 'deepseek', modelId: 'deepseek-flash', patch: { contextTokens: 1048576 } }))
+  })
+
+  it('输出上限超过 128,000 时红字「最多 128,000」、不保存', async () => {
+    const { api } = await renderPage()
+    expand()
+    const input = screen.getByLabelText('输出上限')
+    expect(input).toHaveValue('128,000')
+    fireEvent.change(input, { target: { value: '200,000' } })
+    fireEvent.blur(input)
+    expect(screen.getByText('最多 128,000')).toBeInTheDocument()
+    expect(api.modelsUpdateModel).not.toHaveBeenCalled()
+    fireEvent.change(input, { target: { value: '64,000' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(api.modelsUpdateModel).toHaveBeenCalledWith({ providerId: 'deepseek', modelId: 'deepseek-flash', patch: { maxOutputTokens: 64000 } }))
   })
 
   it('TC-E24 改名写入失败：红 Toast、输入框回到原名、不重测', async () => {
@@ -488,11 +504,25 @@ describe('模块 E · 终端命令', () => {
 })
 
 describe('模块 E · 侧栏', () => {
+  const withUserAgent = (ua, fn) => {
+    const spy = vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(ua)
+    try { return fn() } finally { spy.mockRestore() }
+  }
+  const envGroupLabels = () => {
+    const group = [...document.querySelectorAll('.nav-group')].find((g) => g.querySelector('.nav-group-label')?.textContent === '环境配置')
+    return [...group.querySelectorAll('.nav-label')].map((n) => n.textContent)
+  }
+
+  it('非 Mac 上不显示「模型接入」（终端命令只支持 macOS）', async () => {
+    const { default: WorkbenchLayout } = await import('../../src/components/WorkbenchLayout')
+    withUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)', () => render(<WorkbenchLayout activeModule="usage"><div /></WorkbenchLayout>))
+    expect(envGroupLabels()).toEqual(['Claude Code 设置', '网络诊断'])
+  })
+
   it('TC-E18 环境配置组顺序；VALID_ACTIVE_MODULES 含 models', async () => {
     const { default: WorkbenchLayout } = await import('../../src/components/WorkbenchLayout')
-    render(<WorkbenchLayout activeModule="usage"><div /></WorkbenchLayout>)
-    const group = [...document.querySelectorAll('.nav-group')].find((g) => g.querySelector('.nav-group-label')?.textContent === '环境配置')
-    expect([...group.querySelectorAll('.nav-label')].map((n) => n.textContent)).toEqual(['Claude Code 设置', '模型接入', '网络诊断'])
+    withUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', () => render(<WorkbenchLayout activeModule="usage"><div /></WorkbenchLayout>))
+    expect(envGroupLabels()).toEqual(['Claude Code 设置', '模型接入', '网络诊断'])
     const { VALID_ACTIVE_MODULES } = await import('../../src/App.jsx')
     expect(VALID_ACTIVE_MODULES.has('models')).toBe(true)
   })

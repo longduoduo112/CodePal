@@ -2,7 +2,7 @@
  * 模型接入页 · 视图推导
  *
  * 负责：
- * - 页面上的各家显示信息与主进程预设一致（名称、类型字、Key 前缀、思考强度档位）
+ * - 页面上的各家显示信息与主进程预设一致（名称、类型字、Key 前缀、思考强度档位、输出上限）
  * - 时间写法、上限解析、命令写法、主按钮优先级
  *
  * @module tests/models/modelsView.test
@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { createRequire } from 'node:module'
-import { EFFORTS, PROVIDERS, commandText, modelNameError, parsePositiveInt, primaryAction, testedAtParts } from '../../src/features/models/modelsView'
+import { MAX_OUTPUT_CAP, PROVIDERS, commandText, modelNameError, parsePositiveInt, primaryAction, testedAtParts } from '../../src/features/models/modelsView'
 
 process.env.TZ = 'Asia/Shanghai'
 const require = createRequire(import.meta.url)
@@ -21,9 +21,9 @@ describe('modelsView', () => {
     expect(PROVIDERS.map((p) => p.id)).toEqual(Object.keys(presets.PRESETS))
     for (const p of PROVIDERS) {
       const main = presets.PRESETS[p.id]
-      expect({ name: p.name, type: p.type, keyPrefix: p.keyPrefix }).toEqual({ name: main.name, type: main.type, keyPrefix: main.keyPrefix })
+      expect({ name: p.name, type: p.type, keyPrefix: p.keyPrefix, efforts: p.efforts }).toEqual({ name: main.name, type: main.type, keyPrefix: main.keyPrefix, efforts: [...main.efforts] })
     }
-    expect(EFFORTS).toEqual(presets.EFFORTS)
+    expect(MAX_OUTPUT_CAP).toBe(presets.MAX_OUTPUT_CAP)
   })
 
   it('时间写法：今天 / 昨天 / 今年 / 往年', () => {

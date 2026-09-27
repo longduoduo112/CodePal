@@ -13,15 +13,16 @@
  */
 
 /**
- * 各家显示信息，顺序即页面顺序；Key 前缀、名称与主进程预设一致（tests/models/modelsView.test.js 核对）
- * @type {Array<{id: string, name: string, type: string, color: string, keyPrefix: string}>}
+ * 各家显示信息，顺序即页面顺序；名称、类型字、Key 前缀、思考强度档位与主进程预设一致（tests/models/modelsView.test.js 核对）
+ * efforts：这家真正区分的思考强度，照 Claude Code 原值不翻译（DeepSeek 把 medium、xhigh 当 high，所以只给三档）
+ * @type {Array<{id: string, name: string, type: string, color: string, keyPrefix: string, efforts: string[]}>}
  */
 export const PROVIDERS = [
-  { id: 'deepseek', name: 'DeepSeek', type: '按量', color: 'var(--ic-blue)', keyPrefix: 'sk-' },
+  { id: 'deepseek', name: 'DeepSeek', type: '按量', color: 'var(--ic-blue)', keyPrefix: 'sk-', efforts: ['low', 'high', 'max'] },
 ]
 
-/** 思考强度，照 Claude Code 原值不翻译 */
-export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
+/** 输出上限最多填到这里：Claude Code 请求里的 max_tokens 最多 128,000，填更大也会被压回 */
+export const MAX_OUTPUT_CAP = 128000
 
 const NAME_RE = /^[A-Za-z0-9._-]{1,64}$/
 const DAY = 86400000

@@ -203,13 +203,14 @@ describe('models:* 接口', () => {
     process.env.FAKE_CLAUDE_MODE = 'hang'
     process.env.CODEPAL_TEST_TIMEOUT_MS = '1500'
     const pending = call('models:test', { providerId: 'deepseek', modelId: 'deepseek-v4-pro' })
-    await new Promise((r) => setTimeout(r, 500))
+    // 等替身真的起来（命令行已经按旧模型启动了 claude），再移除；机器忙时固定等待不可靠
+    expect(await waitFor(() => fs.existsSync(sb.report), 5000)).toBe(true)
     await call('models:removeModel', { providerId: 'deepseek', modelId: 'deepseek-v4-pro' })
     await call('models:addModel', { providerId: 'deepseek', name: 'deepseek-v4-pro' })
     const r = await pending
     expect(r.error.code).toBe('test_failed')
     expect(fs.existsSync(path.join(sb.models, 'status', 'deepseek__deepseek-v4-pro.json'))).toBe(false)
-  })
+  }, 20000)
 
   it('TC-F11 改名、调参后下一次启动真的用新值', async () => {
     await call('models:setKey', { providerId: 'deepseek', key: KEY })

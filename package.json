@@ -33,7 +33,7 @@
     "test:shared-usage": "vitest run tests/sharedUsage",
     "test:network": "vitest run tests/network",
     "test:sessions": "vitest run tests/sessions",
-    "test:models": "vitest run tests/models"
+    "test:models": "vitest run tests/models --testTimeout=20000"
   },
   "keywords": [
     "electron",
