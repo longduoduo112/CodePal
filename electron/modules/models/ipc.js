@@ -93,6 +93,11 @@ function registerModelsHandlers({ ipcMain, getMainWindow, cliPath = defaultCliPa
   /** 装过命令就跟着配置同步；同步失败不影响本次操作结果 */
   const syncQuietly = () => { try { commands.syncCommands() } catch {} }
 
+  /** 终端命令状态：写操作后一并带回，页面不用整页重读就能更新「终端命令未安装」那一行 */
+  const commandsView = () => {
+    try { return commands.commandsState({ pathEnv: loginPath() }) } catch { return null }
+  }
+
   ipcMain.handle('models:list', () => {
     try {
       const cfg = store.readConfig()
@@ -109,7 +114,7 @@ function registerModelsHandlers({ ipcMain, getMainWindow, cliPath = defaultCliPa
     try {
       store.setKey(providerId, key)
       syncQuietly()
-      return ok({ provider: providerView(store.readConfig(), store.readStatuses(), providerId) })
+      return ok({ provider: providerView(store.readConfig(), store.readStatuses(), providerId), commands: commandsView() })
     } catch (err) {
       return bad(err)
     }
@@ -137,7 +142,7 @@ function registerModelsHandlers({ ipcMain, getMainWindow, cliPath = defaultCliPa
     try {
       store.addModel(providerId, name)
       syncQuietly()
-      return ok({ provider: providerView(store.readConfig(), store.readStatuses(), providerId) })
+      return ok({ provider: providerView(store.readConfig(), store.readStatuses(), providerId), commands: commandsView() })
     } catch (err) {
       return bad(err)
     }
@@ -147,7 +152,7 @@ function registerModelsHandlers({ ipcMain, getMainWindow, cliPath = defaultCliPa
     try {
       const model = store.updateModel(providerId, modelId, patch || {})
       syncQuietly()
-      return ok({ model })
+      return ok({ model, commands: commandsView() })
     } catch (err) {
       return bad(err)
     }
@@ -157,7 +162,7 @@ function registerModelsHandlers({ ipcMain, getMainWindow, cliPath = defaultCliPa
     try {
       store.removeModel(providerId, modelId)
       syncQuietly()
-      return ok({ provider: providerView(store.readConfig(), store.readStatuses(), providerId) })
+      return ok({ provider: providerView(store.readConfig(), store.readStatuses(), providerId), commands: commandsView() })
     } catch (err) {
       return bad(err)
     }

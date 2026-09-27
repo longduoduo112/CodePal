@@ -112,7 +112,8 @@ describe('SegmentedControl', () => {
 })
 
 describe('源码守门（全局元素只有一个入口）', () => {
-  const pages = ['src/App.jsx', ...sourceFiles('src/pages').filter((f) => /\.jsx?$/.test(f))]
+  // 按领域竖切后的页面在 src/features/ 下，同样守门
+  const pages = ['src/App.jsx', ...[...sourceFiles('src/pages'), ...sourceFiles('src/features')].filter((f) => /\.jsx?$/.test(f))]
 
   it('页面不自己摆 <Toast>、不存提示状态', () => {
     const offenders = pages.filter((f) => {

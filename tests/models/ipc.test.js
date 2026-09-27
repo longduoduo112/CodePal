@@ -75,6 +75,15 @@ describe('models:* 接口', () => {
     expect(r.data.commands).toMatchObject({ installed: false, missing: ['deepseek-flash'], onPath: true })
   })
 
+  it('写操作顺带返回终端命令状态（没装过命令时新模型缺命令）', async () => {
+    const r = await call('models:setKey', { providerId: 'deepseek', key: KEY })
+    expect(r.data.commands).toMatchObject({ installed: false, missing: ['deepseek-flash'] })
+    const r2 = await call('models:addModel', { providerId: 'deepseek', name: 'deepseek-v4-pro' })
+    expect(r2.data.commands.missing).toEqual(['deepseek-flash', 'deepseek-v4-pro'])
+    const r3 = await call('models:updateModel', { providerId: 'deepseek', modelId: 'deepseek-v4-pro', patch: { effort: 'high' } })
+    expect(r3.data).toMatchObject({ model: { id: 'deepseek-v4-pro', effort: 'high' }, commands: { installed: false } })
+  })
+
   it('没填 Key 时 list 也返回每家（keySet false、没有模型）', async () => {
     const r = await call('models:list')
     expect(r.data.providers.deepseek).toEqual({ keySet: false, keyReadable: false, models: [] })

@@ -6,7 +6,7 @@
  */
 import React, { useRef, useState } from 'react';
 import { monthDay } from '../planPresentation';
-import usePopoverDismiss from '../usePopoverDismiss';
+import usePopoverDismiss from '../../../hooks/usePopoverDismiss';
 /** @param {object} props Cycle and save callback resolving to {success}. @returns {JSX.Element} Anchored one-field popover. */
 export default function CyclePricePopover({
   cycle,
