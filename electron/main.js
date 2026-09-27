@@ -78,6 +78,7 @@ const { registerSessionBrowserHandlers } = require('./handlers/registerSessionBr
 const { registerSessionResumeHandlers } = require('./handlers/registerSessionResumeHandlers')
 const { registerDocBrowserHandlers } = require('./handlers/registerDocBrowserHandlers')
 const { registerSessionStatusHandlers } = require('./handlers/registerSessionStatusHandlers')
+const { registerModelsHandlers } = require('./modules/models/ipc')
 const { initDocBrowserStore } = require('./services/docBrowserService')
 const { initializeIpMonitor, setIpMonitorFastMode, stopIpMonitor } = require('./services/networkDiagnosticsService')
 const { createEgressNotifier, withNetworkStyle } = require('./services/egressNotifier')
@@ -336,6 +337,7 @@ shutdownRegistry.register('session-status', () => sessionStatus?.stop())
 shutdownRegistry.register('network-monitor', () => stopIpMonitor())
 shutdownRegistry.register('dsh-worker', () => dshRunner.dispose())
 shutdownRegistry.register('repo-watcher', () => repoWatcherCleanup?.stopWatching())
+shutdownRegistry.register('models-watcher', () => modelsHandlers.stop())
 // 正在写的 Codex 配置要等写完，不能写到一半被中断
 shutdownRegistry.register('codex-config-writes', () => drainConfigQueue())
 
@@ -805,6 +807,12 @@ registerSessionResumeHandlers({
 })
 
 registerDocBrowserHandlers({
+  ipcMain,
+  getMainWindow: () => mainWindow,
+})
+
+// 模型接入（#26）：各家模型以 Claude Code 为外壳被调用；监听调用结果推给页面
+const modelsHandlers = registerModelsHandlers({
   ipcMain,
   getMainWindow: () => mainWindow,
 })
