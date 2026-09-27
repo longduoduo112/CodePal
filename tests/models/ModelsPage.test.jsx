@@ -404,18 +404,22 @@ describe('模块 E · 复制、移除', () => {
     expand()
     fireEvent.click(btn('移除模型'))
     await waitFor(() => expect(confirmDialog).toHaveBeenCalledTimes(1))
-    expect(confirmDialog.mock.calls[0][0]).toEqual({
+    const { onConfirm, ...opts } = confirmDialog.mock.calls[0][0]
+    expect(opts).toEqual({
       title: '移除 deepseek-flash？',
       description: '移除后审核和终端都不能再用它，Key 不受影响。',
       confirmText: '移除',
+      busyText: '移除中…',
       danger: true,
     })
+    expect(typeof onConfirm).toBe('function')
     await act(async () => {})
     expect(api.modelsRemoveModel).not.toHaveBeenCalled()
   })
 
   it('TC-E25 确认移除后行消失、Toast', async () => {
-    confirmDialog.mockResolvedValueOnce(true)
+    // 照真实对话框：点「移除」执行 onConfirm，返回 true 才关
+    confirmDialog.mockImplementationOnce(async (opts) => opts.onConfirm())
     const { api } = await renderPage(withModels({ ...MODEL }, { ...V4 }))
     expand('deepseek-v4-pro')
     fireEvent.click(btn('移除模型'))
@@ -426,12 +430,14 @@ describe('模块 E · 复制、移除', () => {
     expect(toast.success).toHaveBeenCalledWith('已移除 deepseek-v4-pro')
   })
 
-  it('TC-E26 移除失败：红 Toast、行还在', async () => {
-    confirmDialog.mockResolvedValueOnce(true)
+  it('TC-E26 移除失败：红 Toast、行还在、对话框留着（onConfirm 返回 false）', async () => {
+    let confirmResult
+    confirmDialog.mockImplementationOnce(async (opts) => { confirmResult = await opts.onConfirm(); return false })
     await renderPage(withModels({ ...MODEL }, { ...V4 }), { modelsRemoveModel: vi.fn(async () => ({ success: false, error: { code: 'write_denied', message: WRITE_FAIL } })) })
     expand('deepseek-v4-pro')
     fireEvent.click(btn('移除模型'))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(`移除失败：${WRITE_FAIL}`))
+    expect(confirmResult).toBe(false)
     expect(toast.error).toHaveBeenCalledTimes(1)
     expect(row('deepseek-flash')).not.toBeNull()
     expect(row('deepseek-v4-pro')).not.toBeNull()

@@ -163,28 +163,31 @@ export default function useModels() {
     return { ok: true, model }
   }, [test])
 
+  // 移除在确认对话框里执行：按钮「移除中…」，成功才关框；失败对话框留着 + 红 Toast
   const removeModel = useCallback(async (providerId, model) => {
-    const ok = await confirmDialog({
+    const key = `${providerId}__${model.id}`
+    await confirmDialog({
       title: `移除 ${model.name}？`,
       description: '移除后审核和终端都不能再用它，Key 不受影响。',
       confirmText: '移除',
+      busyText: '移除中…',
       danger: true,
+      onConfirm: async () => {
+        mark(setRemoving, key, true)
+        try {
+          const res = await api().modelsRemoveModel({ providerId, modelId: model.id })
+          if (res?.success) {
+            applyProvider(providerId, res.data.provider, res.data.commands)
+            toast.success(`已移除 ${model.name}`)
+            return true
+          }
+          toast.error(`移除失败：${errMessage(res)}`)
+          return false
+        } finally {
+          if (mounted.current) mark(setRemoving, key, false)
+        }
+      },
     })
-    if (!ok) return
-    const key = `${providerId}__${model.id}`
-    mark(setRemoving, key, true)
-    try {
-      const res = await api().modelsRemoveModel({ providerId, modelId: model.id })
-      if (!mounted.current) return
-      if (res?.success) {
-        applyProvider(providerId, res.data.provider, res.data.commands)
-        toast.success(`已移除 ${model.name}`)
-      } else {
-        toast.error(`移除失败：${errMessage(res)}`)
-      }
-    } finally {
-      if (mounted.current) mark(setRemoving, key, false)
-    }
   }, [applyProvider])
 
   const recheckClaude = useCallback(async () => {

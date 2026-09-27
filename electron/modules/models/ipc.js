@@ -13,6 +13,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 const { spawn, spawnSync } = require('child_process')
 const store = require('./store')
 const commands = require('./commands')
@@ -121,8 +122,10 @@ function registerModelsHandlers({ ipcMain, getMainWindow, cliPath = defaultCliPa
   })
 
   ipcMain.handle('models:test', (_e, { providerId, modelId } = {}) => new Promise((resolve) => {
+    // 本次调用编号：只认命令行这次写回的结果，旧状态文件不能冒充这次的结果
+    const runId = crypto.randomUUID()
     const child = spawn(appExecPath, [cliPath, 'launch', providerId, modelId, '--test'], {
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', CODEPAL_RUN_ID: runId },
       stdio: ['ignore', 'ignore', 'pipe'],
     })
     let stderr = ''
@@ -131,10 +134,14 @@ function registerModelsHandlers({ ipcMain, getMainWindow, cliPath = defaultCliPa
     child.on('error', (err) => { clearTimeout(guard); resolve(bad(err)) })
     child.on('close', () => {
       clearTimeout(guard)
-      const lastResult = store.readStatuses()[`${providerId}__${modelId}`] || null
-      // 命令行在启动 claude 之前就退出（没找到 Claude Code、没填 Key 等）时没有状态，把提示原样带回
-      if (!lastResult) resolve({ success: false, data: null, error: { code: 'test_failed', message: stderr.trim().split('\n').pop() || '测试没有完成' } })
-      else resolve(ok({ lastResult }))
+      const record = store.readStatuses()[`${providerId}__${modelId}`]
+      // 命令行在启动 claude 之前就退出（没找到 Claude Code、没填 Key 等）时没有本次结果，把提示原样带回
+      if (!record || record.runId !== runId) {
+        resolve({ success: false, data: null, error: { code: 'test_failed', message: stderr.trim().split('\n').pop() || '测试没有完成' } })
+        return
+      }
+      const { runId: _runId, ...lastResult } = record
+      resolve(ok({ lastResult }))
     })
   }))
 
@@ -195,7 +202,11 @@ function registerModelsHandlers({ ipcMain, getMainWindow, cliPath = defaultCliPa
         const lastResult = store.readStatuses()[key]
         const win = getMainWindow && getMainWindow()
         if (!lastResult || !win || (win.isDestroyed && win.isDestroyed())) return
-        const [providerId, modelId] = key.split('__')
+        // 供应商 id 里没有 __，按第一个分隔符拆；模型名本身可以带 __
+        const cut = key.indexOf('__')
+        if (cut < 0) return
+        const providerId = key.slice(0, cut)
+        const modelId = key.slice(cut + 2)
         win.webContents.send('models:changed', { providerId, modelId, lastResult })
       }, 100))
     })

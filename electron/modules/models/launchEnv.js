@@ -30,6 +30,8 @@ const SCRUB_ENV_KEYS = Object.freeze([
   'CLAUDE_CODE_OAUTH_TOKEN',
   // 命令行自己靠它以 Node 方式运行，不能漏给 claude
   'ELECTRON_RUN_AS_NODE',
+  // 「测一下」的本次调用编号，只给命令行写回结果用
+  'CODEPAL_RUN_ID',
 ])
 
 const RESERVED_FLAGS_INTERACTIVE = Object.freeze(['--model', '--fallback-model', '--settings', '--setting-sources', '--effort', '--autocompact', '--agent', '--agents'])

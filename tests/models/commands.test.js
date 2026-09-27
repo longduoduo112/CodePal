@@ -139,6 +139,28 @@ describe('模块 F · 终端命令', () => {
     expect(readReport(r2).env.ANTHROPIC_MODEL).toBe('deepseek-flash')
   })
 
+  it('同名文件读不了（权限）时当别人的，不覆盖（Codex 审核 P1）', () => {
+    fs.mkdirSync(sb.bin, { recursive: true })
+    const f = path.join(sb.bin, 'codepal-deepseek-flash')
+    fs.writeFileSync(f, '#!/bin/sh\n# 由 CodePal 生成：看起来像，但读不了\n')
+    const before = sha(f)
+    fs.chmodSync(f, 0o000)
+    try {
+      expect(() => commands.installCommands({ appExecPath: APP, cliPath: CLIP })).toThrow(expect.objectContaining({ code: 'occupied' }))
+    } finally {
+      fs.chmodSync(f, 0o644)
+    }
+    expect(sha(f)).toBe(before)
+  })
+
+  it('只缺每家稳定入口时 missingEntries 报出来（Codex 审核 P2）', () => {
+    commands.installCommands({ appExecPath: process.execPath, cliPath: path.join(REPO, 'electron/modules/models/cli.cjs') })
+    fs.rmSync(path.join(sb.bin, 'codepal-deepseek'))
+    const st = commands.commandsState({ pathEnv: sb.bin })
+    expect(st.missing).toEqual([])
+    expect(st.missingEntries).toEqual(['deepseek'])
+  })
+
   it('shellQuote 处理单引号', () => {
     expect(commands.shellQuote("a'b")).toBe("'a'\\''b'")
   })

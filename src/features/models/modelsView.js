@@ -122,13 +122,14 @@ export function claudeBlock(claudeCode) {
 }
 
 /**
- * 顶部「终端命令未安装」这一行要不要出现：至少一个模型、且有模型缺命令
+ * 顶部「终端命令未安装」这一行要不要出现：至少一个模型，且有模型缺命令或某家缺稳定入口（审核走它）
  * @param {object} data - models:list 的 data
  * @returns {boolean}
  */
 export function needsCommands(data) {
   const hasModel = Object.values(data.providers || {}).some((p) => p.keySet && p.models.length > 0)
-  return hasModel && Boolean(data.commands && data.commands.missing && data.commands.missing.length)
+  const c = data.commands || {}
+  return hasModel && Boolean((c.missing && c.missing.length) || (c.missingEntries && c.missingEntries.length))
 }
 
 /**

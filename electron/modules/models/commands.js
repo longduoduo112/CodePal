@@ -70,9 +70,16 @@ function launcherContent({ appExecPath, cliPath, preset, modelArg }) {
   ].join('\n')
 }
 
-/** 读文件；不存在返回 null */
+// 文件在但读不了（权限等）：认不出是不是自己生成的，一律当别人的，不覆盖、不删除
+const UNREADABLE = Symbol('unreadable')
+
+/** 读文件；不存在返回 null，读不了返回 UNREADABLE */
 function readOrNull(file) {
-  try { return fs.readFileSync(file, 'utf8') } catch { return null }
+  try {
+    return fs.readFileSync(file, 'utf8')
+  } catch (err) {
+    return err && err.code === 'ENOENT' ? null : UNREADABLE
+  }
 }
 
 /** 是 CodePal 生成的命令文件 */
@@ -175,21 +182,26 @@ function removeCommand(model) {
 /**
  * 命令状态
  * @param {{pathEnv?: string}} [opts] - 用来判断 onPath 的 PATH（主进程传登录 shell 的 PATH）
- * @returns {{installed: boolean, missing: string[], stale: boolean, onPath: boolean, binDir: string}}
+ * @returns {{installed: boolean, missing: string[], missingEntries: string[], stale: boolean, onPath: boolean, binDir: string}}
+ *   missing：缺命令的模型名；missingEntries：缺稳定入口 codepal-<供应商> 的供应商
  */
 function commandsState({ pathEnv = process.env.PATH } = {}) {
   const cfg = store.readConfig()
   const missing = []
+  const missingEntries = []
   let stale = false
   for (const w of wantedCommands(cfg)) {
     const text = readOrNull(path.join(binDir(), w.name))
     const exec = isGenerated(text) ? execPathOf(text) : null
     const broken = exec !== null && !fs.existsSync(exec)
     if (broken) stale = true
-    if ((text === null || broken) && w.model) missing.push(w.model)
+    if (text !== null && !broken) continue
+    // 缺模型命令记模型名；缺每家稳定入口（dev-workflow 审核走它）记供应商
+    if (w.model) missing.push(w.model)
+    else missingEntries.push(w.preset.id)
   }
   const onPath = String(pathEnv || '').split(path.delimiter).some((d) => d && path.resolve(d) === path.resolve(binDir()))
-  return { installed: Boolean(cfg.commandsInstalled), missing, stale, onPath, binDir: displayDir() }
+  return { installed: Boolean(cfg.commandsInstalled), missing, missingEntries, stale, onPath, binDir: displayDir() }
 }
 
 module.exports = {

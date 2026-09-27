@@ -116,9 +116,12 @@ function validateKey(providerId, key) {
   }
 }
 
-/** 生成一个模型条目（id 即名字） */
+/**
+ * 生成一个模型条目（id 即名字）
+ * uid 标识这一个模型实例：移除后同名重加是新实例，旧调用的结果不能写到它头上
+ */
 function makeModel(preset, name) {
-  return { id: name, name, ...modelDefaults(preset, name) }
+  return { id: name, name, uid: crypto.randomBytes(6).toString('hex'), ...modelDefaults(preset, name) }
 }
 
 /**
@@ -250,13 +253,31 @@ function removeModel(providerId, modelId) {
  * 写一次调用结果（命令行在后台调用结束后写，页面「测一下」同一份）
  * @param {string} providerId
  * @param {string} modelId
- * @param {{ok: boolean, reason?: string|null, message?: string|null, source: 'test'|'review'}} result
+ * @param {{ok: boolean, reason?: string|null, message?: string|null, source: 'test'|'review', runId?: string}} result
+ *   runId：页面「测一下」给的本次调用编号，主进程只认带着它的结果
  */
 function writeStatus(providerId, modelId, result) {
   ensureDir(resolveModelsHome())
   const record = { ok: Boolean(result.ok), reason: result.reason || null, message: result.message || null, at: new Date().toISOString(), source: result.source }
+  if (result.runId) record.runId = result.runId
   writePrivate(statusFile(providerId, modelId), JSON.stringify(record))
   return record
+}
+
+/**
+ * 调用开始时的那个模型实例现在还在不在（调用期间被移除、改名、同名重加都算不在）
+ * @param {string} providerId
+ * @param {{id: string, uid?: string}} model - 调用开始时读到的模型
+ * @returns {boolean}
+ */
+function isCurrentModel(providerId, model) {
+  try {
+    const prov = readConfig().providers[providerId]
+    const now = prov && prov.models.find((m) => m.id === model.id)
+    return Boolean(now) && now.uid === model.uid
+  } catch {
+    return false
+  }
 }
 
 /** @returns {Object<string, object>} 键为 <供应商>__<模型> */
@@ -284,6 +305,7 @@ module.exports = {
   updateModel,
   removeModel,
   writeStatus,
+  isCurrentModel,
   readStatuses,
   statusDir,
 }

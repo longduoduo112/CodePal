@@ -10,7 +10,7 @@
  * @module tests/globalElements
  */
 
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -68,6 +68,26 @@ describe('confirmDialog', () => {
     act(() => { pending = confirmDialog({ title: '删除？' }) })
     fireEvent.click(await screen.findByRole('button', { name: '取消' }))
     await expect(pending).resolves.toBe(false)
+  })
+
+  it('带 onConfirm：执行期间显示 busyText 且不能关；返回 false 对话框留着，返回 true 才关', async () => {
+    let finishAction
+    const onConfirm = vi.fn(() => new Promise((r) => { finishAction = r }))
+    let pending
+    act(() => { pending = confirmDialog({ title: '移除 m？', confirmText: '移除', busyText: '移除中…', danger: true, onConfirm }) })
+    fireEvent.click(await screen.findByRole('button', { name: '移除' }))
+    expect(screen.getByRole('button', { name: '移除中…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '取消' })).toBeDisabled()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await act(async () => { finishAction(false) })
+    // 失败：对话框还在，按钮恢复
+    expect(screen.getByText('移除 m？')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '移除' })).not.toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '移除' }))
+    await act(async () => { finishAction(true) })
+    await expect(pending).resolves.toBe(true)
+    await waitFor(() => expect(screen.queryByText('移除 m？')).toBeNull())
+    expect(onConfirm).toHaveBeenCalledTimes(2)
   })
 
   it('Esc 等于取消；危险动作默认聚焦取消', async () => {

@@ -19,6 +19,7 @@ import { makeSandbox, waitFor, alive, readReport, REPO, KEY } from './helpers'
 
 const require = createRequire(import.meta.url)
 const { registerModelsHandlers } = require('../../electron/modules/models/ipc.js')
+const store = require('../../electron/modules/models/store.js')
 
 let sb
 let handlers
@@ -178,6 +179,36 @@ describe('models:* 接口', () => {
     expect(await waitFor(() => send.mock.calls.some((c) => c[0] === 'models:changed'), 3000)).toBe(true)
     const payload = send.mock.calls.find((c) => c[0] === 'models:changed')[1]
     expect(payload).toMatchObject({ providerId: 'deepseek', modelId: 'deepseek-flash', lastResult: { ok: false, reason: 'balance', source: 'review' } })
+  })
+
+  it('测一下没跑起来时不把旧的成功结果当这次结果（Codex 审核 P1）', async () => {
+    await call('models:setKey', { providerId: 'deepseek', key: KEY })
+    store.writeStatus('deepseek', 'deepseek-flash', { ok: true, source: 'review' })
+    process.env.CODEPAL_CLAUDE_BIN = path.join(sb.root, 'no-such-claude')
+    const r = await call('models:test', { providerId: 'deepseek', modelId: 'deepseek-flash' })
+    expect(r).toMatchObject({ success: false, error: { code: 'test_failed', message: '没找到 Claude Code' } })
+  })
+
+  it('模型名带 __ 时推送的 modelId 完整（Codex 审核 P2）', async () => {
+    await call('models:setKey', { providerId: 'deepseek', key: KEY })
+    await call('models:addModel', { providerId: 'deepseek', name: 'foo__bar' })
+    store.writeStatus('deepseek', 'foo__bar', { ok: false, reason: 'net', source: 'review' })
+    expect(await waitFor(() => send.mock.calls.some((c) => c[0] === 'models:changed'), 3000)).toBe(true)
+    expect(send.mock.calls.find((c) => c[0] === 'models:changed')[1]).toMatchObject({ providerId: 'deepseek', modelId: 'foo__bar' })
+  })
+
+  it('调用期间模型被移除后同名重加，旧调用的结果不写回（Codex 审核 P2）', async () => {
+    await call('models:setKey', { providerId: 'deepseek', key: KEY })
+    await call('models:addModel', { providerId: 'deepseek', name: 'deepseek-v4-pro' })
+    process.env.FAKE_CLAUDE_MODE = 'hang'
+    process.env.CODEPAL_TEST_TIMEOUT_MS = '1500'
+    const pending = call('models:test', { providerId: 'deepseek', modelId: 'deepseek-v4-pro' })
+    await new Promise((r) => setTimeout(r, 500))
+    await call('models:removeModel', { providerId: 'deepseek', modelId: 'deepseek-v4-pro' })
+    await call('models:addModel', { providerId: 'deepseek', name: 'deepseek-v4-pro' })
+    const r = await pending
+    expect(r.error.code).toBe('test_failed')
+    expect(fs.existsSync(path.join(sb.models, 'status', 'deepseek__deepseek-v4-pro.json'))).toBe(false)
   })
 
   it('TC-F11 改名、调参后下一次启动真的用新值', async () => {
