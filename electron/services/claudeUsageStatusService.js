@@ -15,7 +15,7 @@ const { readFileSync } = require('fs')
 const path = require('path')
 const os = require('os')
 const { execFile } = require('child_process')
-const { promisify } = require('util')
+const { promisify, isDeepStrictEqual } = require('util')
 // 服务层不再反向依赖 handler 层：atomicWriteText 用于脚本/config 等非 settings 文件（settings 写走注入的 claudeSettingsService）
 const { atomicWriteText } = require('./envFileService')
 const { recordFootprint } = require('./footprintRegistry')
@@ -506,7 +506,12 @@ function createClaudeUsageStatusService({ pathExists, claudeSettingsService }) {
       if (!force && !allowCreate && !ownership.usesManagedStatusLine) {
         return { ok: false, errorCode: 'USAGE_STATUS_NOT_MANAGED', error: '静默维护仅作用于已由 CodePal 托管的状态栏' }
       }
-      const next = { ...data, statusLine: { type: 'command', command: MANAGED_STATUS_COMMAND } }
+      const managedStatusLine = { type: 'command', command: MANAGED_STATUS_COMMAND }
+      // 已经是托管的最新写法：启动维护不重写、不留备份（#51，每次启动原样重写并多存一份备份）
+      if (kind !== 'missing' && isDeepStrictEqual(data.statusLine, managedStatusLine)) {
+        return { ok: true, noop: true }
+      }
+      const next = { ...data, statusLine: managedStatusLine }
       return { ok: true, next, create: allowCreate }
     }, { backupSuffix: 'codepal-usage-status' })
 
