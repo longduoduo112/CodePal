@@ -2,7 +2,7 @@
 
 > AI 编程工具负责写代码，CodePal 负责写代码之外的一切 —— 用量与订阅、会话状态、对话回顾、新项目初始化与 Skills / Plugins 跨工具管理。专为 **Claude Code / Codex / Cursor / Trae** 用户打造。
 
-[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/yunshu0909/CodePal/releases) [![version](https://img.shields.io/badge/version-v2.1.0-blue)](https://github.com/yunshu0909/CodePal/releases/latest) [![license](https://img.shields.io/badge/license-ISC-green)](#license)
+[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/yunshu0909/CodePal/releases) [![version](https://img.shields.io/badge/version-v2.1.1-blue)](https://github.com/yunshu0909/CodePal/releases/latest) [![license](https://img.shields.io/badge/license-ISC-green)](#license)
 
 ---
 
@@ -185,7 +185,11 @@ skill-manager/
 
 完整版本信息见 [GitHub Releases](https://github.com/yunshu0909/CodePal/releases)。
 
-**最新版本：[v2.1.0](https://github.com/yunshu0909/CodePal/releases/tag/v2.1.0)**
+**最新版本：[v2.1.1](https://github.com/yunshu0909/CodePal/releases/tag/v2.1.1)**
+
+- 🔧 修复：安装版里打开「会话状态」报「未找到内置会话状态模板」（v2.0.0 起就有）
+
+**v2.1.0**
 
 - 🔌 新增「模型接入」（macOS）：填 DeepSeek 的 Key 就能用它开 Claude Code；一键装终端命令 `codepal-deepseek-flash`，CodePal 关着也能用，不改你的 Claude 配置
 - 🧪 「测一下」直接告诉你能不能用；失败时说清是 Key 无效、余额不足、模型名不对还是连不上
