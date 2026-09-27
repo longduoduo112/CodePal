@@ -180,6 +180,19 @@ describe('models:* 接口', () => {
     expect(payload).toMatchObject({ providerId: 'deepseek', modelId: 'deepseek-flash', lastResult: { ok: false, reason: 'balance', source: 'review' } })
   })
 
+  it('TC-F11 改名、调参后下一次启动真的用新值', async () => {
+    await call('models:setKey', { providerId: 'deepseek', key: KEY })
+    expect((await call('models:updateModel', { providerId: 'deepseek', modelId: 'deepseek-flash', patch: { name: 'deepseek-v4-pro' } })).success).toBe(true)
+    expect((await call('models:updateModel', { providerId: 'deepseek', modelId: 'deepseek-v4-pro', patch: { effort: 'high' } })).success).toBe(true)
+    const { spawnSync } = await import('node:child_process')
+    const r = spawnSync(process.execPath, [path.join(REPO, 'electron/modules/models/cli.cjs'), 'launch', 'deepseek', 'deepseek-v4-pro', '--', '--print'], { input: 'hi', env: { ...process.env, FAKE_CLAUDE_MODE: 'success' } })
+    expect(r.status).toBe(0)
+    const report = readReport(sb.report)
+    expect(report.env.ANTHROPIC_MODEL).toBe('deepseek-v4-pro')
+    const overlay = JSON.parse(report.argv[report.argv.indexOf('--settings') + 1])
+    expect(overlay.env.CLAUDE_CODE_EFFORT_LEVEL).toBe('high')
+  })
+
   it('recheckClaude 返回当前检测结果', async () => {
     expect((await call('models:recheckClaude')).data).toMatchObject({ found: true, version: '2.1.283' })
   })
