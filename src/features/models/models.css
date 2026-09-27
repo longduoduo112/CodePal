@@ -1,0 +1,54 @@
+/**
+ * 模型接入页样式（Native+ 新样式页面）
+ *
+ * 负责：
+ * - 只写本页的尺寸与排布：卡片堆叠、被挡住卡的行、行首展开箭头、展开区缩进、弹层锚定位置、思考强度菜单
+ * - 颜色 / 字体只用全局 tokens；卡片、按钮、状态点、输入框、弹层外观等共用件在 styles/native.css
+ *
+ * 设计定稿：specs/第三方模型接入/模型接入-定稿/前端设计定稿-模型接入.md §3、§4、§11.2
+ *
+ * @module features/models/models.css
+ */
+
+/* 卡片堆叠：块间距 12 */
+.mj-page .mj-stack { display: flex; flex-direction: column; gap: 12px; }
+
+/* 被挡住卡：一个条件一行（高 24），行间 12 */
+.mj-page .mj-block { display: flex; flex-direction: column; gap: 12px; }
+.mj-page .mj-bline { min-height: 24px; }
+.mj-page .mj-bt { font-weight: 500; }
+.mj-page .mj-bdesc { margin-top: 2px; font-size: 11.5px; line-height: 15px; color: var(--fg-2); }
+
+/* 行首：箭头 10 → 4 → 名称 + 描述；箭头和名字那一块能点 */
+.mj-page .mj-toggle { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; cursor: default; }
+.mj-page .mj-toggle:focus { outline: none; }
+.mj-page .mj-toggle:focus-visible { border-radius: 4px; box-shadow: 0 0 0 3px rgba(43, 127, 255, .25); }
+.mj-page .mj-toggle > .lf { min-width: 0; }
+.mj-page .mj-disc { width: 10px; height: 10px; flex: none; fill: none; stroke: var(--fg-3); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.mj-page .mj-name { overflow: hidden; text-overflow: ellipsis; }
+.mj-page .mj-num { font-family: var(--num); }
+
+/* 展开区：整体缩进 16；模型名框 200 宽、数字框 128 宽；命令等宽单行省略 */
+.mj-page .mj-sub { padding-left: 16px; }
+.mj-page .mj-w-name { flex: none; width: 200px; }
+.mj-page .mj-w-num { flex: none; width: 128px; }
+.mj-page .mj-cmdrow .lf { flex: 1; }
+.mj-page .mj-cmd { font-family: var(--mono); }
+
+/* 思考强度：弹出按钮下挂菜单，右对齐 */
+.mj-page .mj-effort { position: relative; flex: none; }
+.mj-page .mj-menu { top: 28px; right: 0; width: 160px; }
+
+/* 弹层：宽 280；Key 弹层锚在卡头按钮下（相对卡 top 44 / right 20），添加弹层锚在「＋ 添加模型」下（相对该行 top 36 / left 0）；
+   margin 0：卡头后面紧跟的弹层不吃「卡头 → 第一块 10」 */
+.mj-page .mj-pop { position: absolute; z-index: 5; width: 280px; margin: 0; padding: 10px 12px 12px; }
+.mj-page .mj-pop-r { top: 44px; right: 20px; }
+.mj-page .mj-pop-l { top: 36px; left: 0; }
+.mj-page .mj-pop-l::before { left: 22px; right: auto; }
+.mj-page .mj-pop .np-in { margin-top: 8px; }
+.mj-page .mj-pop-ft { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+/* 骨架宽度 */
+.mj-page .mj-sk-btn { width: 64px; }
+.mj-page .mj-sk-name { width: 180px; }
+.mj-page .mj-sk-st { width: 96px; }

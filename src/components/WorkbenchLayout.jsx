@@ -82,6 +82,7 @@ function WorkbenchLayout({ children, activeModule, onModuleChange, appUpdate, on
       items: [
         // 'api' 供应商切换模块已断接线隔离（v1.9.8），代码在 _disabled/api-config/，恢复步骤见其 README
         { id: 'permission', label: 'Claude Code 设置' },
+        { id: 'models', label: '模型接入' },
         { id: 'network', label: '网络诊断' }
       ]
     }

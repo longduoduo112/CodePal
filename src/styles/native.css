@@ -485,3 +485,30 @@
 :is(.page-shell--native, .np-scope) .np-read.np-read .hljs [class*="hljs-"] { color: inherit; background: none; font-style: normal; font-weight: inherit; }
 :is(.page-shell--native, .np-scope) .np-read.np-read a { color: var(--blue-fg); text-decoration: none; cursor: pointer; }
 :is(.page-shell--native, .np-scope) .np-read.np-read blockquote { margin: 0 0 8px; padding: 0 0 0 12px; border-left: 2px solid var(--track); color: var(--fg-2); }
+
+/* ── 表单与弹层（09-26 模型接入定稿回流：弹层小三角、卡头类型字第二次出现；键值行、横排、文字输入框对应样式包）──
+   订阅管理的 .plan-type、.plan-pop::before、.plan-in input 暂未迁移，下次改到那页时换成这里的类 */
+/* 卡头 → 卡里第一块 10（表单型卡没有卡头，不算） */
+:is(.page-shell--native, .np-scope) :where(.np-card:not(.np-card--form)) > :where(.np-card-hd + *) { margin-top: 10px; }
+/* 卡头标题旁的类型字（「按量」「套餐」）：11 / 500 弱灰 */
+:is(.page-shell--native, .np-scope) .np-card-type { font-size: 11px; font-weight: 500; color: var(--fg-3); }
+/* 带小三角的弹层：三角默认在右上、离右 22；锚在左边的弹层由页面把三角挪到左边 */
+:is(.page-shell--native, .np-scope) .np-pop.np-pop--arrow::before {
+  content: ""; position: absolute; top: -5px; right: 22px; width: 10px; height: 10px;
+  background: #fff; transform: rotate(45deg); box-shadow: -.5px -.5px 0 rgba(0, 0, 0, .14);
+}
+/* 弹层标题与提示（提示默认弱灰，.bad 红、.warn 橙） */
+:is(.page-shell--native, .np-scope) .np-pop-title { font-size: 12.5px; font-weight: 600; }
+:is(.page-shell--native, .np-scope) .np-pop-hint { margin-top: 8px; font-size: 10.5px; line-height: 14px; color: var(--fg-3); }
+:is(.page-shell--native, .np-scope) .np-pop-hint.bad { color: var(--red-fg); }
+:is(.page-shell--native, .np-scope) .np-pop-hint.warn { color: var(--orange-fg); }
+/* 键值行：表单行里「名称 — 值」，名称用常规字重 */
+:is(.page-shell--native, .np-scope) .np-row.np-kv .lb { font-weight: 400; }
+/* 横排：同一行并排的元素间距 8；.push 推到最右 */
+:is(.page-shell--native, .np-scope) .np-hstack { display: flex; align-items: center; gap: 8px; min-width: 0; }
+:is(.page-shell--native, .np-scope) .np-hstack > .push { margin-left: auto; }
+/* 包着 input 的输入框：input 本身不带外观；输入文字加 --text（默认是数字：圆体 600）；写入期间禁用半透明 */
+:is(.page-shell--native, .np-scope) .np-in input { min-width: 0; width: 100%; padding: 0; border: 0; background: transparent; font: inherit; color: var(--fg); outline: none; }
+:is(.page-shell--native, .np-scope) .np-in.np-in--text { font-family: inherit; font-weight: 400; }
+:is(.page-shell--native, .np-scope) .np-in.np-in--text input::placeholder { color: var(--fg-4); }
+:is(.page-shell--native, .np-scope) .np-in:has(input:disabled) { opacity: .5; }

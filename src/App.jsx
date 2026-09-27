@@ -21,6 +21,7 @@ import ProjectInitPage from './pages/ProjectInitPage'
 import PermissionModePage from './pages/PermissionModePage'
 import PluginControlPage from './pages/PluginControlPage'
 import NetworkDiagnosticsPage from './pages/NetworkDiagnosticsPage'
+import ModelsPage from './features/models/ModelsPage'
 import SessionBrowserPage from './pages/SessionBrowserPage'
 import DocBrowserPage from './pages/DocBrowserPage'
 import SessionStatusPage from './pages/SessionStatusPage'
@@ -32,7 +33,7 @@ import useMainNavigation from './hooks/useMainNavigation'
 const AUTO_INCREMENTAL_REFRESH_INTERVAL_MS = 5 * 60 * 1000
 // 首次打开、或记住的页面已下线时进侧栏第一项（2026-09-19 用户定）
 const DEFAULT_ACTIVE_MODULE = 'usage'
-const VALID_ACTIVE_MODULES = new Set(['skills', 'plugins', 'usage', 'claude-usage', 'project-init', 'permission', 'network', 'session-status', 'sessions', 'doc-browser'])
+export const VALID_ACTIVE_MODULES = new Set(['skills', 'plugins', 'usage', 'claude-usage', 'project-init', 'permission', 'models', 'network', 'session-status', 'sessions', 'doc-browser'])
 const INITIAL_APP_UPDATE_STATE = Object.freeze({
   checked: false,
   checking: false,
@@ -47,7 +48,7 @@ const INITIAL_APP_UPDATE_STATE = Object.freeze({
 
 /**
  * 读取上次访问的模块，并过滤已下线模块
- * @returns {'skills'|'plugins'|'usage'|'claude-usage'|'project-init'|'permission'|'network'|'session-status'|'sessions'|'doc-browser'}
+ * @returns {'skills'|'plugins'|'usage'|'claude-usage'|'project-init'|'permission'|'models'|'network'|'session-status'|'sessions'|'doc-browser'}
  */
 function getInitialActiveModule() {
   // 原「状态灯」已改名为「会话状态」（#41），记住的旧模块直接带过去
@@ -311,6 +312,7 @@ export default function App() {
         {activeModule === 'claude-usage' && <PlanManagementPage />}
         {activeModule === 'project-init' && <ProjectInitPage />}
         {activeModule === 'permission' && <PermissionModePage />}
+        {activeModule === 'models' && <ModelsPage />}
         {activeModule === 'network' && <NetworkDiagnosticsPage />}
         {activeModule === 'session-status' && <SessionStatusPage />}
         {activeModule === 'sessions' && <SessionBrowserPage />}

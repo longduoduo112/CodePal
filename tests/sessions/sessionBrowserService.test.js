@@ -43,7 +43,7 @@ describe('listRecent', () => {
     expect(sessions[1].auto).toBe(false)
     expect(sessions[2].auto).toBe(false)
     expect(typeof sessions[0].modifiedAt).toBe('string')
-    expect(Object.keys(sessions[0]).sort()).toEqual(['auto', 'branch', 'modifiedAt', 'parentDir', 'preview', 'projectId', 'projectName', 'projectPath', 'sessionId', 'title'].sort())
+    expect(Object.keys(sessions[0]).sort()).toEqual(['auto', 'branch', 'model', 'modifiedAt', 'parentDir', 'preview', 'projectId', 'projectName', 'projectPath', 'sessionId', 'title'].sort())
   })
 
   it('TC-02 标题：多条 ai-title 取最后一条；没有则第一句真实提问；都没有为 null', async () => {

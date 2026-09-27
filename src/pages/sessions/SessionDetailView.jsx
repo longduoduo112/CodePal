@@ -17,7 +17,7 @@ import StateView from '../../components/StateView/StateView'
 import { toast } from '../../components/Toast'
 import MessageFlow from './MessageFlow'
 import { FOLDER } from './SessionListView'
-import { displayTitle, formatWhen, iconColor, resumeCommand } from './sessionView'
+import { displayTitle, formatWhen, iconColor, otherModel, resumeCommand } from './sessionView'
 
 const PAGE_SIZE = 200
 // 自动刷新最多往前补读几页来接上已有末条（每页有字节预算）
@@ -225,7 +225,8 @@ export default function SessionDetailView({ session, hit, onBack }) {
   const noCwd = cwd !== null && !cwd.cwd
   const gone = cwd !== null && Boolean(cwd.cwd) && !cwd.cwdExists
   const title = displayTitle(session)
-  const meta = [session.projectName, session.branch, formatWhen(session.modifiedAt, now)].filter(Boolean).join(' · ')
+  // 用别家模型开的会话在末尾接模型名（列表不变，用户 2026-09-26 选定）
+  const meta = [session.projectName, session.branch, formatWhen(session.modifiedAt, now), otherModel(session)].filter(Boolean).join(' · ')
 
   return (
     <>

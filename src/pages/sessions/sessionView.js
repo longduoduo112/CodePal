@@ -5,7 +5,7 @@
  * - 按天分组（今天 / 昨天 / 前 7 天 / 更早）与两种时间写法
  * - 项目方块颜色、项目菜单数据、按项目 / 是否含自动调用筛选
  * - 消息分组：把连续的工具调用合成一块
- * - 标题回退与 resume 命令
+ * - 标题回退与 resume 命令；非 Claude 模型名（详情元信息用）
  *
  * 规则来源：specs/redesign-CodePal视觉重做/对话回顾-定稿/前端设计定稿-对话回顾.md §6
  *
@@ -201,6 +201,16 @@ export function groupMessages(messages) {
  */
 export function displayTitle(session) {
   return session.title || '（无标题）'
+}
+
+/**
+ * 详情元信息末尾要接的模型名：只有非 Claude 模型（CodePal 模型接入开的会话，如 deepseek-flash）才接
+ * @param {{model?: string|null}} session
+ * @returns {string|null}
+ */
+export function otherModel(session) {
+  const model = session.model
+  return model && !/^claude/i.test(model) ? model : null
 }
 
 /**

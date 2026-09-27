@@ -476,6 +476,72 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('network:ipStateUpdate', handler)
   },
 
+  // 模型接入 APIs（#26）：只传供应商 / 模型 ID，Key 只写不回读
+
+  /**
+   * 读取各家配置、Claude Code 检测结果、终端命令状态（不含 Key）
+   * @returns {Promise<{success: boolean, data: Object|null, error: {code: string, message: string}|null}>}
+   */
+  modelsList: () => ipcRenderer.invoke('models:list'),
+
+  /**
+   * 保存某家的 Key；第一次保存时自动加入预设默认模型
+   * @param {{providerId: string, key: string}} payload
+   * @returns {Promise<{success: boolean, data: {provider: Object}|null, error: Object|null}>}
+   */
+  modelsSetKey: (payload) => ipcRenderer.invoke('models:setKey', payload),
+
+  /**
+   * 测一下：走和审核相同的调用路径，结束后返回这次结果
+   * @param {{providerId: string, modelId: string}} payload
+   * @returns {Promise<{success: boolean, data: {lastResult: Object}|null, error: Object|null}>}
+   */
+  modelsTest: (payload) => ipcRenderer.invoke('models:test', payload),
+
+  /**
+   * 新增模型
+   * @param {{providerId: string, name: string}} payload
+   * @returns {Promise<{success: boolean, data: {provider: Object}|null, error: Object|null}>}
+   */
+  modelsAddModel: (payload) => ipcRenderer.invoke('models:addModel', payload),
+
+  /**
+   * 改模型名或参数（改名会换 id）
+   * @param {{providerId: string, modelId: string, patch: Object}} payload
+   * @returns {Promise<{success: boolean, data: {model: Object}|null, error: Object|null}>}
+   */
+  modelsUpdateModel: (payload) => ipcRenderer.invoke('models:updateModel', payload),
+
+  /**
+   * 移除模型
+   * @param {{providerId: string, modelId: string}} payload
+   * @returns {Promise<{success: boolean, data: {provider: Object}|null, error: Object|null}>}
+   */
+  modelsRemoveModel: (payload) => ipcRenderer.invoke('models:removeModel', payload),
+
+  /**
+   * 重新检测 Claude Code（装好或升级后用）
+   * @returns {Promise<{success: boolean, data: Object}>}
+   */
+  modelsRecheckClaude: () => ipcRenderer.invoke('models:recheckClaude'),
+
+  /**
+   * 在 ~/.local/bin 安装各模型的终端命令
+   * @returns {Promise<{success: boolean, data: {installed: string[]}|null, error: Object|null}>}
+   */
+  modelsInstallCommands: () => ipcRenderer.invoke('models:installCommands'),
+
+  /**
+   * 监听后台调用（审核 / 终端）写回的结果
+   * @param {(change: {providerId: string, modelId: string, lastResult: Object}) => void} callback
+   * @returns {() => void} 取消监听函数
+   */
+  onModelsChanged: (callback) => {
+    const handler = (_event, change) => callback(change)
+    ipcRenderer.on('models:changed', handler)
+    return () => ipcRenderer.removeListener('models:changed', handler)
+  },
+
   /**
    * 监听主进程要求切页（如点系统通知后切到网络诊断）
    * @param {(moduleId: string) => void} callback

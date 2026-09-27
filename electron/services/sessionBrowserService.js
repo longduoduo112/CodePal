@@ -151,11 +151,18 @@ async function readSessionMeta(projectId, file) {
   // 开头 64KB 可能全是大段快照行（真实数据里有），工作目录与启动方式也从尾部取一份兜底
   let tailCwd = null
   let tailEntrypoint = null
+  // 最后一条助手消息的模型：CodePal 用别家模型开的会话（如 deepseek-flash）在详情里标出来
+  let tailModel = null
   const needSession = () => !tailBranch || !tailPrompt || (!cwd && !tailCwd) || (!entrypoint && !tailEntrypoint)
   await scanBackward(file, { maxBytes: TAIL_BYTES }, (text) => {
     // 粗筛：只解析可能有用的行，避免尾部大段工具输出拖慢
     if (!aiTitle && text.includes('"ai-title"')) { const o = parse(text); if (o?.type === 'ai-title' && o.aiTitle) aiTitle = o.aiTitle }
     if (!lastPrompt && text.includes('"last-prompt"')) { const o = parse(text); if (o?.type === 'last-prompt' && o.lastPrompt) lastPrompt = o.lastPrompt }
+    if (!tailModel && text.includes('"assistant"') && text.includes('"model"')) {
+      const o = parse(text)
+      // <synthetic> 是 Claude Code 自己补的消息（如报错），不算模型
+      if (o?.type === 'assistant' && typeof o.message?.model === 'string' && o.message.model && o.message.model !== '<synthetic>') tailModel = o.message.model
+    }
     if (needSession() && (text.includes('"gitBranch"') || text.includes('"cwd"') || text.includes('"user"'))) {
       const o = parse(text)
       if (o) {
@@ -165,7 +172,7 @@ async function readSessionMeta(projectId, file) {
         if (!tailPrompt) { const m = toMessage(o); if (m && m.kind === 'ask') tailPrompt = m.text }
       }
     }
-    return !(aiTitle && lastPrompt && !needSession())
+    return !(aiTitle && lastPrompt && tailModel && !needSession())
   })
   cwd = cwd || tailCwd
   entrypoint = entrypoint || tailEntrypoint
@@ -184,6 +191,7 @@ async function readSessionMeta(projectId, file) {
     branch: tailBranch || branch,
     modifiedAt: stat.mtime.toISOString(),
     auto: entrypoint === 'sdk-cli',
+    model: tailModel,
   }
 }
 

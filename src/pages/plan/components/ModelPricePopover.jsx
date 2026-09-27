@@ -7,7 +7,7 @@
  */
 import React, { useRef, useState } from 'react';
 import Button from '../../../components/Button/Button';
-import usePopoverDismiss from '../usePopoverDismiss';
+import usePopoverDismiss from '../../../hooks/usePopoverDismiss';
 const FIELDS = [['input', '输入'], ['output', '输出'], ['cacheRead', '缓存读'], ['cacheWrite', '缓存写']];
 /** @param {object} props Model row and price callbacks resolving to {success, found?}. @returns {JSX.Element} Upward anchored popover. */
 export default function ModelPricePopover({
