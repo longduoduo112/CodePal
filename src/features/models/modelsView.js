@@ -19,6 +19,11 @@
  */
 export const PROVIDERS = [
   { id: 'deepseek', name: 'DeepSeek', type: '按量', color: 'var(--ic-blue)', keyPrefix: 'sk-', efforts: ['low', 'high', 'max'] },
+  { id: 'mimo-api', name: 'MiMo API', type: '按量', color: 'var(--ic-orange)', keyPrefix: 'sk-', efforts: ['high'] },
+  { id: 'zhipu-api', name: '智谱 API', type: '按量', color: 'var(--ic-green)', keyPrefix: '', efforts: ['low', 'high', 'max'] },
+  { id: 'kimi-api', name: 'Kimi API', type: '按量', color: 'var(--ic-purple)', keyPrefix: '', efforts: ['low', 'high', 'max'] },
+  { id: 'zhipu-coding', name: '智谱 Coding Plan', type: '套餐', color: 'var(--ic-green)', keyPrefix: '', efforts: ['low', 'high', 'max'] },
+  { id: 'kimi-coding', name: 'Kimi Coding Plan', type: '套餐', color: 'var(--ic-purple)', keyPrefix: '', efforts: ['low', 'high', 'max'] },
 ]
 
 /** 输出上限最多填到这里：Claude Code 请求里的 max_tokens 最多 128,000，填更大也会被压回 */
@@ -103,10 +108,11 @@ export const formatInt = (n) => Number(n).toLocaleString('en-US')
  * 终端启动命令：命令目录在 PATH 里写命令名，不在就写完整路径
  * @param {string} modelName
  * @param {{onPath?: boolean, binDir?: string}|null} commands
+ * @param {string} [providerId] - DeepSeek 保留历史命令名，新增渠道按 ID 隔离
  * @returns {string}
  */
-export function commandText(modelName, commands) {
-  const name = `codepal-${modelName}`
+export function commandText(modelName, commands, providerId = 'deepseek') {
+  const name = providerId === 'deepseek' ? `codepal-${modelName}` : `codepal-${providerId}--${modelName}`
   return commands && commands.onPath === false ? `${commands.binDir}/${name}` : name
 }
 

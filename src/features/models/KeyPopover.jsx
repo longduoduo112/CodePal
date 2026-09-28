@@ -15,7 +15,7 @@ import usePopoverDismiss from '../../hooks/usePopoverDismiss'
 
 /**
  * @param {Object} props
- * @param {{name: string, keyPrefix: string}} props.preset - 这家的显示信息
+ * @param {{id: string, name: string, keyPrefix: string}} props.preset - 这家的显示信息
  * @param {object} props.anchorRef - 卡头按钮的 ref（点它不算点外面）
  * @param {() => void} props.onCancel
  * @param {(key: string) => Promise<{ok: boolean, message?: string}>} props.onSave
@@ -29,12 +29,18 @@ export default function KeyPopover({ preset, anchorRef, onCancel, onSave }) {
   const root = useRef(null)
   usePopoverDismiss(root, onCancel, anchorRef)
 
+  const keyLabel = preset.id === 'deepseek' ? 'DeepSeek API Key' : `${preset.name} Key`
   const prefixError = `${preset.name} 的 Key 以 ${preset.keyPrefix} 开头`
   const key = value.trim()
-  const invalid = error === prefixError
+  const formatError = 'Key 格式不对'
+  const invalid = error === prefixError || error === formatError
 
   const submit = async () => {
     if (!key || saving) return
+    if (/\p{Cc}/u.test(value)) {
+      setError(formatError)
+      return
+    }
     if (!key.startsWith(preset.keyPrefix) || key.length <= preset.keyPrefix.length) {
       setError(prefixError)
       return
@@ -50,16 +56,17 @@ export default function KeyPopover({ preset, anchorRef, onCancel, onSave }) {
   const onChange = (e) => {
     setValue(e.target.value)
     // 前缀红字只在改对之后消失；保存失败的红字留着，直到再次保存
-    if (invalid && e.target.value.trim().startsWith(preset.keyPrefix)) setError(null)
+    const next = e.target.value.trim()
+    if (invalid && !/\p{Cc}/u.test(e.target.value) && next.startsWith(preset.keyPrefix) && next.length > preset.keyPrefix.length) setError(null)
   }
 
   return (
-    <div ref={root} className="np-pop np-pop--arrow mj-pop mj-pop-r" role="dialog" aria-label={`${preset.name} API Key`}>
-      <div className="np-pop-title">{`${preset.name} API Key`}</div>
+    <div ref={root} className="np-pop np-pop--arrow mj-pop mj-pop-r" role="dialog" aria-label={keyLabel}>
+      <div className="np-pop-title">{keyLabel}</div>
       <span className="np-in np-in--text">
         <input
           type="password"
-          aria-label={`${preset.name} API Key`}
+          aria-label={keyLabel}
           placeholder="粘贴 Key"
           autoFocus
           value={value}

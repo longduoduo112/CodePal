@@ -104,13 +104,13 @@ function presetOf(providerId) {
 }
 
 /**
- * 校验 Key：字符串、无换行和空字符、以这家的前缀开头
+ * 校验 Key：非空字符串、无控制字符；有官方前缀的渠道再校验前缀
  * @param {string} providerId
  * @param {string} key
  */
 function validateKey(providerId, key) {
   const preset = presetOf(providerId)
-  if (typeof key !== 'string' || !key || /[\r\n\0]/.test(key)) throw fail('invalid_input', 'Key 格式不对')
+  if (typeof key !== 'string' || !key.trim() || /\p{Cc}/u.test(key)) throw fail('invalid_input', 'Key 格式不对')
   if (!key.startsWith(preset.keyPrefix) || key.length <= preset.keyPrefix.length) {
     throw fail('invalid_input', `${preset.name} 的 Key 以 ${preset.keyPrefix} 开头`)
   }

@@ -24,7 +24,7 @@ const SCRUB_ENV_KEYS = Object.freeze([
   'CLAUDE_CODE_SUBAGENT_MODEL', 'CLAUDE_CODE_EFFORT_LEVEL', 'CLAUDE_CODE_AUTO_COMPACT_WINDOW',
   'CLAUDE_CODE_MAX_CONTEXT_TOKENS', 'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
   'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY',
-  'ANTHROPIC_CUSTOM_HEADERS', 'HTTP_USER_AGENT', 'MAX_THINKING_TOKENS',
+  'ANTHROPIC_CUSTOM_HEADERS', 'HTTP_USER_AGENT', 'MAX_THINKING_TOKENS', 'ANTHROPIC_SMALL_FAST_MODEL',
   'CLAUDE_CODE_DISABLE_THINKING', 'CLAUDE_CODE_DISABLE_1M_CONTEXT',
   // Nexus 没处理的缺口：会员登录令牌可能让请求绕过注入的地址
   'CLAUDE_CODE_OAUTH_TOKEN',
@@ -111,6 +111,8 @@ function buildLaunch({ mode, preset, model, key, parentEnv, userArgs, modelsHome
     env.CLAUDE_CODE_MAX_RETRIES = maxRetries !== undefined ? String(maxRetries) : (parentEnv.CLAUDE_CODE_MAX_RETRIES || String(DEFAULT_PRINT_RETRIES))
   }
   const overlay = JSON.stringify({
+    // GLM 要求开启思考；只覆盖本次启动，不改用户全局 settings。
+    ...(preset.alwaysThinkingEnabled ? { alwaysThinkingEnabled: true } : {}),
     env: {
       CLAUDE_CODE_EFFORT_LEVEL: model.effort,
       CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(model.contextTokens),

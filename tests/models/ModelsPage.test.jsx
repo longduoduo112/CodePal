@@ -79,7 +79,9 @@ async function renderPage(data = base(), overrides = {}) {
 const primaries = () => [...document.querySelectorAll('button.btn--primary:not([disabled])')]
 const row = (id = 'deepseek-flash') => document.querySelector(`[data-model="${id}"]`)
 const rowButtons = (id) => [...row(id).querySelectorAll('button')]
-const btn = (text) => screen.getByRole('button', { name: text })
+const btn = (text) => text === '填写 Key'
+  ? [...screen.getByText('DeepSeek').closest('section').querySelectorAll('button')].find(b => b.textContent === text)
+  : screen.getByRole('button', { name: text })
 const queryBtn = (text) => screen.queryByRole('button', { name: text })
 const desc = (id = 'deepseek-flash') => row(id).querySelector('.ds')?.textContent ?? null
 const expand = (name = 'deepseek-flash') => fireEvent.click(screen.getByTitle(name))
@@ -95,7 +97,7 @@ afterEach(() => {
   delete window.electronAPI
 })
 
-describe('模块 E · 状态呈现', () => {
+describe('TC-005 模块 E · 状态呈现', () => {
   it('TC-E01 正常：可用 + 20:38 测过 + 唯一按钮「测一下」', async () => {
     await renderPage()
     expect(screen.getByText('可用')).toBeInTheDocument()
@@ -211,7 +213,7 @@ describe('模块 E · 状态呈现', () => {
   })
 })
 
-describe('模块 E · Key 弹层', () => {
+describe('TC-005 模块 E · Key 弹层', () => {
   it('TC-E10 打开 Key 弹层后卡头按钮退白，保存禁用', async () => {
     await renderPage(firstTime())
     fireEvent.click(btn('填写 Key'))
@@ -236,7 +238,7 @@ describe('模块 E · Key 弹层', () => {
   it('TC-E19 保存失败：弹层不关、红字原因、不弹 Toast', async () => {
     await renderPage(firstTime(), { modelsSetKey: vi.fn(async () => ({ success: false, error: { code: 'write_denied', message: WRITE_FAIL } })) })
     fireEvent.click(btn('填写 Key'))
-    fireEvent.change(screen.getByPlaceholderText('粘贴 Key'), { target: { value: 'sk-test-0123456789abcdef' } })
+    fireEvent.change(screen.getByPlaceholderText('粘贴 Key'), { target: { value: 'sk-fixture' } })
     fireEvent.click(btn('保存'))
     expect(await screen.findByText(`保存失败：${WRITE_FAIL}`)).toBeInTheDocument()
     expect(screen.getByPlaceholderText('粘贴 Key')).toBeInTheDocument()
@@ -249,9 +251,9 @@ describe('模块 E · Key 弹层', () => {
     const { api } = await renderPage(firstTime(), { modelsTest: vi.fn(never) })
     fireEvent.click(btn('填写 Key'))
     const input = screen.getByPlaceholderText('粘贴 Key')
-    fireEvent.change(input, { target: { value: 'sk-test-0123456789abcdef' } })
+    fireEvent.change(input, { target: { value: 'sk-fixture' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => expect(api.modelsSetKey).toHaveBeenCalledWith({ providerId: 'deepseek', key: 'sk-test-0123456789abcdef' }))
+    await waitFor(() => expect(api.modelsSetKey).toHaveBeenCalledWith({ providerId: 'deepseek', key: 'sk-fixture' }))
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Key 已保存'))
     expect(toast.success).toHaveBeenCalledTimes(1)
     expect(screen.queryByPlaceholderText('粘贴 Key')).toBeNull()
@@ -265,14 +267,14 @@ describe('模块 E · Key 弹层', () => {
   it('TC-E33 Esc 关闭 Key 弹层且不保存', async () => {
     const { api } = await renderPage(firstTime())
     fireEvent.click(btn('填写 Key'))
-    fireEvent.change(screen.getByPlaceholderText('粘贴 Key'), { target: { value: 'sk-test-0123456789abcdef' } })
+    fireEvent.change(screen.getByPlaceholderText('粘贴 Key'), { target: { value: 'sk-fixture' } })
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByPlaceholderText('粘贴 Key')).toBeNull()
     expect(api.modelsSetKey).not.toHaveBeenCalled()
   })
 })
 
-describe('模块 E · 测一下与后台写回', () => {
+describe('TC-005 模块 E · 测一下与后台写回', () => {
   it('TC-E12 测一下期间「测试中…」禁用，状态点不动', async () => {
     await renderPage(base(), { modelsTest: vi.fn(never) })
     fireEvent.click(btn('测一下'))
@@ -303,7 +305,7 @@ describe('模块 E · 测一下与后台写回', () => {
   })
 })
 
-describe('模块 E · 添加、改名、参数', () => {
+describe('TC-005 模块 E · 添加、改名、参数', () => {
   it('TC-E14 添加重名 / 与供应商同名：红字、添加禁用、不调接口', async () => {
     const { api } = await renderPage()
     fireEvent.click(btn('＋ 添加模型'))
@@ -404,7 +406,7 @@ describe('模块 E · 添加、改名、参数', () => {
   })
 })
 
-describe('模块 E · 复制、移除', () => {
+describe('TC-005 模块 E · 复制、移除', () => {
   it('TC-E17 复制命令写入剪贴板（在 PATH 里）', async () => {
     const writeText = vi.fn(async () => {})
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
@@ -460,7 +462,7 @@ describe('模块 E · 复制、移除', () => {
   })
 })
 
-describe('模块 E · 终端命令', () => {
+describe('TC-005 模块 E · 终端命令', () => {
   const noCmd = () => ({ ...base(), commands: { installed: false, missing: ['deepseek-flash'], stale: false, onPath: true, binDir: '~/.local/bin' } })
 
   it('TC-E27 命令未安装：顶部一行 + 主按钮「安装命令」', async () => {
@@ -503,7 +505,7 @@ describe('模块 E · 终端命令', () => {
   })
 })
 
-describe('模块 E · 侧栏', () => {
+describe('TC-005 模块 E · 侧栏', () => {
   const withUserAgent = (ua, fn) => {
     const spy = vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(ua)
     try { return fn() } finally { spy.mockRestore() }

@@ -128,7 +128,7 @@ export default function ProviderCard({ preset, provider, primaryKey, blocked, te
           expanded={expanded.has(m.id)}
           otherNames={names.filter((n) => n !== m.name)}
           efforts={preset.efforts}
-          command={commandText(m.name, commands)}
+          command={commandText(m.name, commands, pid)}
           now={now}
           onToggle={() => toggle(m.id)}
           onTest={() => actions.test(pid, m.id)}

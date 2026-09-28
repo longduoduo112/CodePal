@@ -23,6 +23,27 @@ const DEEPSEEK_DEFAULTS = Object.freeze({
   autoCompactWindow: 786432,
 })
 
+/**
+ * 新渠道共享 Claude Code 参数边界，各自持有不可变默认值。
+ * @param {object} config - 官方地址、认证方式与模型
+ * @returns {object} 不可变渠道预设
+ */
+function channelPreset(config) {
+  const { maxOutputTokens = MAX_OUTPUT_CAP, efforts = ['low', 'high', 'max'], ...meta } = config
+  const defaults = Object.freeze({
+    effort: 'high',
+    contextTokens: 1048576,
+    maxOutputTokens,
+    autoCompactWindow: 786432,
+  })
+  return Object.freeze({
+    ...meta,
+    efforts: Object.freeze(efforts),
+    defaults,
+    models: Object.freeze({ [meta.defaultModel]: defaults }),
+  })
+}
+
 const PRESETS = Object.freeze({
   deepseek: Object.freeze({
     id: 'deepseek',
@@ -39,6 +60,42 @@ const PRESETS = Object.freeze({
       'deepseek-flash': DEEPSEEK_DEFAULTS,
       'deepseek-v4-pro': DEEPSEEK_DEFAULTS,
     }),
+  }),
+  // 官方 Claude Code 接入文档（2026-09-28）；API 和套餐即使同址也独立保管 Key。
+  // https://mimo.mi.com/docs/integration/claudecode
+  'mimo-api': channelPreset({
+    id: 'mimo-api', name: 'MiMo API', type: '按量',
+    baseUrl: 'https://api.xiaomimimo.com/anthropic',
+    authEnv: 'ANTHROPIC_AUTH_TOKEN', keyPrefix: 'sk-',
+    defaultModel: 'mimo-v2.6-pro', efforts: ['high'],
+  }),
+  // https://docs.bigmodel.cn/cn/guide/develop/claude/introduction
+  'zhipu-api': channelPreset({
+    id: 'zhipu-api', name: '智谱 API', type: '按量',
+    baseUrl: 'https://open.bigmodel.cn/api/anthropic',
+    authEnv: 'ANTHROPIC_API_KEY', keyPrefix: '',
+    defaultModel: 'glm-5.3', alwaysThinkingEnabled: true,
+  }),
+  // https://platform.kimi.com/docs/guide/claude-code-kimi
+  'kimi-api': channelPreset({
+    id: 'kimi-api', name: 'Kimi API', type: '按量',
+    baseUrl: 'https://api.moonshot.cn/anthropic',
+    authEnv: 'ANTHROPIC_AUTH_TOKEN', keyPrefix: '',
+    defaultModel: 'kimi-k3', maxOutputTokens: 32768,
+  }),
+  // https://docs.bigmodel.cn/cn/coding-plan/quick-start
+  'zhipu-coding': channelPreset({
+    id: 'zhipu-coding', name: '智谱 Coding Plan', type: '套餐',
+    baseUrl: 'https://open.bigmodel.cn/api/anthropic',
+    authEnv: 'ANTHROPIC_API_KEY', keyPrefix: '',
+    defaultModel: 'glm-5.3', alwaysThinkingEnabled: true,
+  }),
+  // https://www.kimi.com/code/docs/en/third-party-tools/claude-code.html
+  'kimi-coding': channelPreset({
+    id: 'kimi-coding', name: 'Kimi Coding Plan', type: '套餐',
+    baseUrl: 'https://api.kimi.com/coding/',
+    authEnv: 'ANTHROPIC_API_KEY', keyPrefix: '',
+    defaultModel: 'kimi-for-coding', maxOutputTokens: 32768,
   }),
 })
 

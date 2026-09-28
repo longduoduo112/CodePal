@@ -2,7 +2,7 @@
  * 第三方模型接入 · 终端命令
  *
  * 负责：
- * - 用户点「安装命令」后，在 ~/.local/bin 为每个模型写 codepal-<模型名>，为每家写稳定入口
+ * - 用户点「安装命令」后，在 ~/.local/bin 为每个模型写渠道专属命令（DeepSeek 保留旧名），为每家写稳定入口
  *   codepal-<供应商>（运行时取这家列表第一个模型，给 dev-workflow 审核用，改名不断）
  * - 命令是三行 shell：用 ELECTRON_RUN_AS_NODE=1 以 CodePal 自带的 Node 跑 cli.cjs；路径一律单引号转义，
  *   路径里的 $()、反引号不会被执行；命令里不含 Key
@@ -38,7 +38,9 @@ function displayDir() {
   return dir.startsWith(home + path.sep) ? '~' + dir.slice(home.length) : dir
 }
 
-const commandName = (model) => `${PREFIX}${model}`
+const commandName = (model, providerId = 'deepseek') => providerId === 'deepseek'
+  ? `${PREFIX}${model}`
+  : `${PREFIX}${providerId}--${model}`
 const providerCommandName = (providerId) => `${PREFIX}${providerId}`
 
 /** 单引号转义：整体包在单引号里，内部的 ' 写成 '\'' */
@@ -105,7 +107,7 @@ function wantedCommands(cfg) {
   for (const [id, prov] of Object.entries(cfg.providers)) {
     const preset = PRESETS[id]
     if (!preset || !prov.keySet || !prov.models.length) continue
-    for (const m of prov.models) out.push({ name: commandName(m.name), preset, modelArg: m.name, model: m.name })
+    for (const m of prov.models) out.push({ name: commandName(m.name, id), preset, modelArg: m.name, model: m.name })
     out.push({ name: providerCommandName(id), preset, modelArg: '@first', model: null })
   }
   return out
@@ -124,6 +126,17 @@ function rememberPaths(cfg, appExecPath, cliPath) {
  * @returns {string[]} 写出的命令名
  */
 function writeAll(wanted, { appExecPath, cliPath }) {
+  // 先验整批目标，避免后面的同名渠道覆盖前面的内容；macOS 默认大小写不敏感。
+  const names = new Set()
+  for (const w of wanted) {
+    const folded = w.name.toLowerCase()
+    if (names.has(folded)) {
+      const err = new Error(`安装失败：命令名冲突 ${w.name}，请修改模型名`)
+      err.code = 'occupied'
+      throw err
+    }
+    names.add(folded)
+  }
   for (const w of wanted) {
     const text = readOrNull(path.join(binDir(), w.name))
     if (text !== null && !isGenerated(text)) {
@@ -174,8 +187,8 @@ function syncCommands() {
 }
 
 /** 删掉某个模型的命令（只删自己生成的） */
-function removeCommand(model) {
-  const file = path.join(binDir(), commandName(model))
+function removeCommand(model, providerId = 'deepseek') {
+  const file = path.join(binDir(), commandName(model, providerId))
   if (isGenerated(readOrNull(file))) fs.rmSync(file, { force: true })
 }
 
@@ -190,12 +203,21 @@ function commandsState({ pathEnv = process.env.PATH } = {}) {
   const missing = []
   const missingEntries = []
   let stale = false
-  for (const w of wantedCommands(cfg)) {
+  const wanted = wantedCommands(cfg)
+  const counts = new Map()
+  for (const w of wanted) {
+    const name = w.name.toLowerCase()
+    counts.set(name, (counts.get(name) || 0) + 1)
+  }
+  for (const w of wanted) {
     const text = readOrNull(path.join(binDir(), w.name))
     const exec = isGenerated(text) ? execPathOf(text) : null
     const broken = exec !== null && !fs.existsSync(exec)
     if (broken) stale = true
-    if (text !== null && !broken) continue
+    // 同步失败会保留旧文件；文件存在不代表它仍指向当前渠道。
+    const targetMatches = isGenerated(text) && (text.split('\n')[2] || '').endsWith(` launch ${w.preset.id} ${w.modelArg} -- "$@"`)
+    const unique = counts.get(w.name.toLowerCase()) === 1
+    if (targetMatches && unique && !broken) continue
     // 缺模型命令记模型名；缺每家稳定入口（dev-workflow 审核走它）记供应商
     if (w.model) missing.push(w.model)
     else missingEntries.push(w.preset.id)
