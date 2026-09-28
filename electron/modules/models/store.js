@@ -35,9 +35,9 @@ function fail(code, message) {
   return err
 }
 
-/** @returns {string} 模型目录绝对路径 */
-function resolveModelsHome() {
-  return process.env.CODEPAL_MODELS_HOME || path.join(os.homedir(), 'Library', 'Application Support', 'CodePal', 'models')
+/** @param {object} options Trusted home/environment overrides. @returns {string} Model root without reading credentials. */
+function resolveModelsHome({ homeDir = os.homedir(), env = process.env } = {}) {
+  return env.CODEPAL_MODELS_HOME || path.join(homeDir, 'Library', 'Application Support', 'CodePal', 'models')
 }
 
 /** 建目录；已存在时只收紧（去掉组和其他人的权限），不放宽用户自己设的权限 */

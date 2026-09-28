@@ -15,6 +15,7 @@
 const fsp = require('fs/promises')
 const path = require('path')
 const os = require('os')
+const { backgroundProjectsDir: resolveBackgroundProjectsDir } = require('../platform/modelPaths')
 const { readHeadLines, scanBackward, scanForward } = require('./sessionFileReader')
 
 const HEAD_BYTES = 64 * 1024
@@ -31,6 +32,34 @@ const SAFE_ID = /^[a-zA-Z0-9_-]+$/
  */
 function getProjectsDir(override) {
   return override || process.env.CODEPAL_CLAUDE_PROJECTS_DIR || path.join(os.homedir(), '.claude', 'projects')
+}
+
+/** @param {object} options Trusted service overrides. @returns {Array<object>} Server-owned source roots. */
+function sourceRoots(options = {}) {
+  const primary = getProjectsDir(options.projectsDir)
+  // A fixture-only primary override must never pull production conversations into tests/screenshots.
+  const isolated = options.backgroundProjectsDir ||
+    ((!options.projectsDir && !process.env.CODEPAL_CLAUDE_PROJECTS_DIR) || process.env.CODEPAL_MODELS_HOME
+      ? resolveBackgroundProjectsDir() : null)
+  return [{ root: primary, source: null }, ...(isolated ? [{ root: isolated, source: 'codepal' }] : [])]
+}
+
+/** @param {string} root Trusted root. @param {string} projectId Raw ID. @param {string} sessionId Raw ID. @returns {Promise<string>} Confined canonical file. */
+async function confinedFile(root, projectId, sessionId) {
+  const file = sessionFile(root, projectId, sessionId)
+  const realRoot = await fsp.realpath(root)
+  const realFile = await fsp.realpath(file)
+  const relative = path.relative(realRoot, realFile)
+  if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) throw Error('INVALID_ID')
+  return realFile
+}
+
+/** @param {object} options Trusted overrides. @param {string} projectId Namespaced or legacy ID. @param {string} sessionId Raw ID. @returns {Promise<string>} Resolved file. */
+async function resolveSessionFile(options, projectId, sessionId) {
+  const isBackground = typeof projectId === 'string' && projectId.startsWith('codepal:')
+  const source = sourceRoots(options).find(item => item.source === (isBackground ? 'codepal' : null))
+  if (!source) throw Error('INVALID_ID')
+  return confinedFile(source.root, isBackground ? projectId.slice(8) : projectId, sessionId)
 }
 
 /**
@@ -200,41 +229,48 @@ async function readSessionMeta(projectId, file) {
  * @param {{projectsDir?: string}} [options]
  * @returns {Promise<{projectsDirExists: boolean, sessions: Array<object>}>} 按修改时间倒序
  */
-async function listRecent({ projectsDir, signal } = {}) {
+async function listRecent(options = {}) {
+  const { signal } = options
   if (signal?.aborted) throw cancelledError()
-  const root = getProjectsDir(projectsDir)
-  let entries
-  try {
-    entries = await fsp.readdir(root, { withFileTypes: true })
-  } catch (error) {
-    if (error.code === 'ENOENT') return { projectsDirExists: false, sessions: [] }
-    // 页面直接显示这句原因：权限问题写成人话，别把系统报错原样甩出去
-    if (error.code === 'EACCES' || error.code === 'EPERM') throw new Error(`没有权限读取 ${tildify(root)}`)
-    throw error
-  }
   const sessions = []
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) continue
-    let files
+  const seenRoots = new Set()
+  for (const { root, source } of sourceRoots(options)) {
+    let realRoot
+    let entries
     try {
-      files = await fsp.readdir(path.join(root, entry.name))
-    } catch {
-      continue // 单个项目目录读不了不影响别的
+      realRoot = await fsp.realpath(root)
+      if (seenRoots.has(realRoot)) continue
+      entries = await fsp.readdir(realRoot, { withFileTypes: true })
+      seenRoots.add(realRoot)
+    } catch (error) {
+      if (error.code === 'ENOENT') continue
+      if (error.code === 'EACCES' || error.code === 'EPERM') throw new Error(`没有权限读取 ${tildify(root)}`)
+      throw error
     }
-    for (const name of files) {
-      if (!name.endsWith('.jsonl')) continue
-      // 搜索被取消时，搜索前的会话列表扫描也要停（B2-4 审核）
-      if (signal?.aborted) throw cancelledError()
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+      let files
       try {
-        const meta = await readSessionMeta(entry.name, path.join(root, entry.name, name))
-        if (meta) sessions.push(meta)
+        files = await fsp.readdir(path.join(realRoot, entry.name))
       } catch {
-        // 单个文件坏了跳过
+        continue
+      }
+      for (const name of files) {
+        if (!name.endsWith('.jsonl')) continue
+        if (signal?.aborted) throw cancelledError()
+        try {
+          const file = await confinedFile(realRoot, entry.name, name.slice(0, -6))
+          const meta = await readSessionMeta(entry.name, file)
+          if (meta) meta.sessionId = name.slice(0, -6)
+          if (meta) sessions.push(source ? { ...meta, projectId: `codepal:${entry.name}`, source, auto: true } : meta)
+        } catch {
+          // A damaged or escaped file cannot hide other valid conversations.
+        }
       }
     }
   }
   sessions.sort((a, b) => (a.modifiedAt < b.modifiedAt ? 1 : a.modifiedAt > b.modifiedAt ? -1 : 0))
-  return { projectsDirExists: true, sessions }
+  return { projectsDirExists: seenRoots.size > 0, sessions }
 }
 
 // 单页上限：条数封顶 + 字节预算（行原文长度）。超了先停，剩下的由页面「加载更早」接着读（B2-4）
@@ -257,8 +293,9 @@ function sessionFile(root, projectId, sessionId) {
  * @param {{limit?: number, before?: number, projectsDir?: string}} [options]
  * @returns {Promise<{messages: Array<object>, hasMore: boolean, cursor: number}>} messages 按时间正序，cursor 传给下一页的 before
  */
-async function readSessionPage(projectId, sessionId, { limit = 200, before, projectsDir } = {}) {
-  const file = sessionFile(getProjectsDir(projectsDir), projectId, sessionId)
+async function readSessionPage(projectId, sessionId, options = {}) {
+  const { limit = 200, before } = options
+  const file = await resolveSessionFile(options, projectId, sessionId)
   await fsp.access(file)
   const pageLimit = Math.min(Math.max(1, Math.floor(Number(limit)) || 200), MAX_PAGE_LIMIT)
   const collected = []
@@ -284,12 +321,12 @@ async function readSessionPage(projectId, sessionId, { limit = 200, before, proj
  *   signal：被取消（同一窗口发起了新搜索）就停止扫描，抛 code=CANCELLED
  * @returns {Promise<Array<{projectId: string, sessionId: string, snippet: string, offset: number}>>}
  */
-async function searchSessions(keyword, { projectPath = null, includeAuto = false, maxResults = 50, projectsDir, signal } = {}) {
+async function searchSessions(keyword, options = {}) {
+  const { projectPath = null, includeAuto = false, maxResults = 50, signal } = options
   if (signal?.aborted) throw cancelledError()
   const kw = String(keyword || '').trim().toLowerCase()
   if (!kw) return []
-  const root = getProjectsDir(projectsDir)
-  const { sessions } = await listRecent({ projectsDir: root, signal })
+  const { sessions } = await listRecent(options)
   const scope = sessions.filter((s) => (includeAuto || !s.auto) && (!projectPath || s.projectPath === projectPath))
   const results = []
   // 关键词没有大小写之分（中文、数字、符号）时省掉每行转小写；非 ASCII 的大小写字母（Ä / É）也要走转小写
@@ -300,7 +337,7 @@ async function searchSessions(keyword, { projectPath = null, includeAuto = false
     if (results.length >= maxResults) break
     let hit = null
     try {
-      await scanForward(path.join(root, s.projectId, `${s.sessionId}.jsonl`), (text, offset) => {
+      await scanForward(await resolveSessionFile(options, s.projectId, s.sessionId), (text, offset) => {
         if (signal?.aborted) return false
         if (!lineHas(text)) return true
         if (text.includes('"media_type"') && text.includes('"data"')) return true // 跳过图片等大块编码

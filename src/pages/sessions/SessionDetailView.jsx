@@ -52,6 +52,7 @@ function Skeleton() {
  */
 export default function SessionDetailView({ session, hit, onBack }) {
   const { projectId, sessionId } = session
+  const backgroundOnly = session.source === 'codepal'
   const now = Date.now()
   const [page, setPage] = useState({ status: 'loading', messages: [], hasMore: false, cursor: 0, error: null })
   const [loadingOlder, setLoadingOlder] = useState(false)
@@ -103,12 +104,17 @@ export default function SessionDetailView({ session, hit, onBack }) {
 
   // 工作目录：决定两个按钮能不能用
   useEffect(() => {
+    if (backgroundOnly) {
+      cwdPromise.current = null
+      return
+    }
     const p = window.electronAPI.readSessionCwd({ projectId, sessionId })
       .then((r) => (r?.success ? { cwd: r.cwd, cwdExists: Boolean(r.cwdExists) } : { cwd: null, cwdExists: false }))
       .catch(() => ({ cwd: null, cwdExists: false }))
     cwdPromise.current = p
     p.then((v) => { if (cwdPromise.current === p) setCwd(v) })
-  }, [projectId, sessionId])
+    return () => { cwdPromise.current = null }
+  }, [projectId, sessionId, backgroundOnly])
 
   // 用 ref 挡并发：滚到顶时一次滑动会连着触发多个 scroll 事件，state 还没更新就会重复加载同一页
   const olderInFlight = useRef(false)
@@ -185,6 +191,7 @@ export default function SessionDetailView({ session, hit, onBack }) {
   }, [page])
 
   const copy = useCallback(async () => {
+    if (backgroundOnly) return
     const info = cwd || await cwdPromise.current
     if (!info?.cwd) return
     try {
@@ -193,9 +200,10 @@ export default function SessionDetailView({ session, hit, onBack }) {
     } catch {
       toast.error('复制失败')
     }
-  }, [cwd, sessionId])
+  }, [cwd, sessionId, backgroundOnly])
 
   const launch = useCallback(async () => {
+    if (backgroundOnly) return
     const info = cwd || await cwdPromise.current
     if (!info?.cwd || !info.cwdExists || launching) return
     setLaunching(true)
@@ -208,7 +216,7 @@ export default function SessionDetailView({ session, hit, onBack }) {
     } finally {
       setLaunching(false)
     }
-  }, [cwd, sessionId, launching])
+  }, [cwd, sessionId, launching, backgroundOnly])
 
   // Esc 返回、⌘⇧C 复制、⌘↩ 新终端启动
   useEffect(() => {
@@ -239,14 +247,14 @@ export default function SessionDetailView({ session, hit, onBack }) {
         <div className="meta">
           <span title={session.projectPath || undefined}>{meta}</span>
           <span className="acts">
-            <Button size="sm" variant="primary" className="np-btn" disabled={noCwd} title={noCwd ? '读不到这个对话的工作目录' : undefined} onClick={copy}>
+            <Button size="sm" variant="primary" className="np-btn" disabled={backgroundOnly || noCwd} title={backgroundOnly ? '后台调用仅供回顾' : noCwd ? '读不到这个对话的工作目录' : undefined} onClick={copy}>
               复制 resume 参数
             </Button>
             <Button
               size="sm"
               className="np-btn"
-              disabled={noCwd || gone || launching}
-              title={noCwd ? '读不到这个对话的工作目录' : gone ? `原项目目录已不存在：${cwd.cwd}` : undefined}
+              disabled={backgroundOnly || noCwd || gone || launching}
+              title={backgroundOnly ? '后台调用仅供回顾' : noCwd ? '读不到这个对话的工作目录' : gone ? `原项目目录已不存在：${cwd.cwd}` : undefined}
               onClick={launch}
             >
               {launching ? '启动中…' : '新终端启动'}

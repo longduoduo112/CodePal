@@ -24,6 +24,7 @@ const {
   normalizeDailySummary,
   mergeDailySummaries,
 } = require('./dailySummaryService')
+const { createBackgroundUsageService } = require('./backgroundUsageService')
 const { createLogScanWindowContext } = require('../logScanner')
 const SOURCES = ['claude', 'codex', 'dsh'],
   FIELDS = ['input', 'output', 'cacheRead', 'cacheCreate']
@@ -96,7 +97,10 @@ function createSharedUsageStatistics({
   sourceEarliestFn,
   legacyReadFn,
   nowFn = () => new Date(),
+  background = scanFn || sourceStatusFn ? null : createBackgroundUsageService({ homeDir }),
 } = {}) {
+  // Injected primary scanners stay isolated unless their test explicitly supplies a background adapter.
+  const sourceIds = background ? [...SOURCES, 'codepal'] : SOURCES
   const days = new Map(),
     listeners = new Set(),
     progressListeners = new Set()
@@ -112,7 +116,7 @@ function createSharedUsageStatistics({
     ticking = null,
     lastRunAt = null,
     scans = 0
-  const scan =
+  const primaryScan =
     scanFn ||
     ((id, start, end, options) =>
       ({ claude: scanClaudeLogs, codex: scanCodexLogs, dsh: scanDshLogs })[id](start, end, {
@@ -121,7 +125,7 @@ function createSharedUsageStatistics({
         strictScan: true,
         pathExistsFn: async () => true,
       }))
-  const status =
+  const primaryStatus =
     sourceStatusFn ||
     (async (id) => {
       try {
@@ -133,6 +137,9 @@ function createSharedUsageStatistics({
         throw e
       }
     })
+  const scan = (id, start, end, options) =>
+    id === 'codepal' ? background.scan(start, end, options) : primaryScan(id, start, end, options)
+  const status = (id) => id === 'codepal' ? background.status() : primaryStatus(id)
   const legacyRead =
     legacyReadFn ||
     (async (key) => {
@@ -202,7 +209,7 @@ function createSharedUsageStatistics({
           dataCutoff = m.dataCutoff || null
           lastRunAt = m.lastRunAt || null
           earliestDate = m.earliestDate || null
-          discovered = m.discovered === true
+          discovered = m.discovered === true && (!background || m.backgroundVersion === 1)
           for (const key of m.openDays || []) if (validDay(key)) openDays.add(key)
         }
       })()
@@ -217,14 +224,17 @@ function createSharedUsageStatistics({
     earliestDate,
     discovered,
     openDays: [...openDays],
+    ...(background ? { backgroundVersion: 1 } : {}),
   })
   function good(entry, key) {
     return (
       entry?.schemaVersion === SCHEMA &&
       entry.semantics === SEMANTICS &&
       entry.date === key &&
-      SOURCES.every((id) => {
+      sourceIds.every((id) => {
         const s = entry.sources?.[id]
+        // Version-one caches remain valid: missing background is supplemented lazily.
+        if (id === 'codepal' && !s) return true
         return (
           s &&
           ['ready', 'missing', 'failed'].includes(s.status) &&
@@ -283,7 +293,7 @@ function createSharedUsageStatistics({
         }
         for (const key of stored.sort()) {
           const e = await loadDay(key)
-          if (e && SOURCES.some((id) => e.sources[id].records.some((r) => FIELDS.some((f) => r[f] > 0)))) {
+          if (e && sourceIds.some((id) => e.sources[id]?.records.some((r) => FIELDS.some((f) => r[f] > 0)))) {
             earliestDate = !earliestDate || key < earliestDate ? key : earliestDate
             break
           }
@@ -294,50 +304,70 @@ function createSharedUsageStatistics({
           if (key) earliestDate = !earliestDate || key < earliestDate ? key : earliestDate
         }
       }
-      discovered = true
+      let backgroundHintFailed = false
+      if (background) {
+        try {
+          const first = await background.earliest()
+          if (validDay(first) && (!earliestDate || first < earliestDate)) earliestDate = first
+        } catch {
+          // Discovery is only a navigation hint. Day scans report the actual failure;
+          // keep primary history usable and try the background hint again next time.
+          backgroundHintFailed = true
+          if (!earliestDate) earliestDate = dayKey(nowFn())
+        }
+      }
+      discovered = !backgroundHintFailed
       return earliestDate
-    })().catch((error) => {
+    })().finally(() => {
       discoveryPromise = null
-      throw error
     })
     return discoveryPromise
   }
-  const recordsOf = (entry) =>
-    SOURCES.flatMap((id) => (entry.sources[id].status === 'ready' ? entry.sources[id].records : []))
-  function projectDay(entry) {
-    const failed = SOURCES.some((id) => entry.sources[id].status === 'failed')
-    if (failed) return { status: 'failed', error: '统计失败' }
-    if (entry.legacy)
-      return {
-        status: 'ready',
-        total: entry.legacy.summary.total,
-        models: entry.legacy.models,
-        cached: true,
-        generatedAt: entry.legacy.generatedAt,
-        legacy: true,
-      }
-    const summary = buildDailySummary(
-      entry.date,
-      aggregateByModel(recordsOf(entry)),
-      aggregateByProject(recordsOf(entry)),
-      new Date(entry.cutoff)
+  const recordsOf = (entry, ids = sourceIds) =>
+    ids.flatMap((id) => (entry.sources[id]?.status === 'ready' ? entry.sources[id].records : []))
+  const hasFailed = (entry) => sourceIds.some((id) => entry.sources[id]?.status === 'failed')
+
+  // Legacy data has no reliable source split. Add only the separate background partition at read time.
+  function summaryOf(entry) {
+    const records = recordsOf(entry, entry.legacy ? sourceIds.filter(id => id === 'codepal') : sourceIds)
+    const added = buildDailySummary(
+      entry.date, aggregateByModel(records), aggregateByProject(records), new Date(entry.cutoff)
     )
+    if (!entry.legacy) return added
+    const merged = mergeDailySummaries([entry.legacy, added])
+    const result = buildDailySummary(entry.date, merged.models, merged.projects, new Date(entry.cutoff))
+    for (const field of ['total', 'input', 'output', 'cache']) {
+      result.summary[field] = (entry.legacy.summary[field] || 0) + added.summary[field]
+    }
+    return result
+  }
+  function projectDay(entry) {
+    if (hasFailed(entry)) return { status: 'failed', error: '统计失败' }
+    const summary = summaryOf(entry)
     return {
       status: 'ready',
       total: summary.summary.total,
       models: summary.models,
-      cached: entry.date < dayKey(nowFn()),
+      cached: Boolean(entry.legacy) || entry.date < dayKey(nowFn()),
       generatedAt: summary.generatedAt,
+      ...(entry.legacy ? { legacy: true } : {}),
     }
   }
   async function fillDay(key, cutoff, context, { force = false, retry = false } = {}) {
     const old = await loadDay(key)
-    if (old && !force && !retry) return false
+    const backgroundIncomplete = background && old?.sources.codepal?.status !== 'failed' &&
+      key < dayKey(nowFn()) && old?.sources.codepal?.complete === false
+    // Old versions can close primary partitions while retaining a partial background partition.
+    const supplementBackground = background && (!old?.sources.codepal || backgroundIncomplete)
+    if (old && !force && !retry && !supplementBackground) return false
     const end = new Date(Math.min(midnight(nextDay(key)).getTime(), cutoff.getTime()))
     if (end <= midnight(key)) return false
     const sources = { ...(old?.sources || {}) }
-    for (const id of SOURCES) {
-      if (retry && old && old.sources[id].status !== 'failed') continue
+    let primaryChanged = false
+    for (const id of sourceIds) {
+      if (old && !force && !retry && old.sources[id] && !(id === 'codepal' && supplementBackground)) continue
+      if (retry && old?.sources[id] && old.sources[id].status !== 'failed') continue
+      if (id !== 'codepal') primaryChanged = true
       try {
         const exists = await status(id)
         if (exists !== 'missing') scans++
@@ -390,13 +420,13 @@ function createSharedUsageStatistics({
       sources,
     }
     const legacy = old?.legacy || (await legacyRead(key))
-    const total = recordsOf(entry).reduce((sum, r) => sum + FIELDS.reduce((s, f) => s + r[f], 0), 0)
-    if (total > 0 && (!earliestDate || key < earliestDate)) earliestDate = key
+    const total = recordsOf(entry, SOURCES).reduce((sum, r) => sum + FIELDS.reduce((s, f) => s + r[f], 0), 0)
+    if (recordsOf(entry).some(r => FIELDS.some(f => r[f] > 0)) && (!earliestDate || key < earliestDate)) earliestDate = key
     // A positive old ledger cannot be reconstructed as zero or guessed into CLI buckets.
     if (
-      legacy?.summary?.total > 0 &&
+      (old?.legacy && !primaryChanged) || (legacy?.summary?.total > 0 &&
       total < legacy.summary.total &&
-      (total === 0 || SOURCES.some((id) => sources[id].status === 'missing'))
+      (total === 0 || SOURCES.some((id) => sources[id].status === 'missing')))
     )
       entry.legacy = legacy
     await storage.write(key, entry)
@@ -474,7 +504,7 @@ function createSharedUsageStatistics({
         result.total += day.total
         if (day.legacy) result.legacyCacheDays++
       }
-      if (key < today && SOURCES.some((id) => !e.sources[id].complete && e.sources[id].status !== 'failed'))
+      if (key < today && sourceIds.some((id) => !e.sources[id]?.complete && e.sources[id]?.status !== 'failed'))
         result.loading = true
     }
     return { taskId, processedDays, totalDays: keys.length, data: result }
@@ -555,27 +585,19 @@ function createSharedUsageStatistics({
   }
   async function readLegacyDay(key, { ensure = false } = {}) {
     if (!validDay(key)) throw Error('INVALID_DAY')
-    if (ensure) await ensureRange(key, nextDay(key))
+    if (ensure || background) await ensureRange(key, nextDay(key))
     const entry = await loadDay(key)
     if (!entry) {
       const legacy = await legacyRead(key)
       return legacy ? { ...legacy, calendarSourceChecked: false } : null
     }
-    if (entry.legacy) return { ...entry.legacy, calendarSourceChecked: false }
-    if (SOURCES.some((id) => entry.sources[id].status === 'failed')) {
+    if (hasFailed(entry)) {
       if (ensure) throw Error('SOURCE_FAILED')
       return null
     }
-    return {
-      ...buildDailySummary(
-        key,
-        aggregateByModel(recordsOf(entry)),
-        aggregateByProject(recordsOf(entry)),
-        new Date(entry.cutoff)
-      ),
-      calendarSourceChecked: true,
-    }
+    return { ...summaryOf(entry), calendarSourceChecked: !entry.legacy }
   }
+
   /** @returns {Promise<object>} Legacy today's view inputs from the same published source snapshot. */
   async function getTodayAggregates() {
     await initialize()
@@ -584,12 +606,12 @@ function createSharedUsageStatistics({
     if (cutoff <= midnight(today)) throw Error('STATISTICS_PENDING')
     await ensureRange(today, nextDay(today), { cutoff })
     const entry = days.get(today)
-    if (SOURCES.some((id) => entry.sources[id].status === 'failed')) throw Error('SOURCE_FAILED')
+    if (hasFailed(entry)) throw Error('SOURCE_FAILED')
     if (entry.legacy)
       return {
-        ...mergeDailySummaries([entry.legacy]),
+        ...mergeDailySummaries([summaryOf(entry)]),
         recordCount: null,
-        cutoff: entry.legacy.generatedAt,
+        cutoff: entry.cutoff,
         revision,
         legacy: true,
       }
@@ -615,7 +637,7 @@ function createSharedUsageStatistics({
           continue
         }
         const e = await loadDay(key)
-        if (key < today && e && SOURCES.some((id) => e.sources[id].status === 'failed') && !open.includes(key))
+        if (key < today && e && hasFailed(e) && !open.includes(key))
           open.push(key)
       }
       for (const key of open.sort()) await fillRange(key, nextDay(key), { cutoff, force: true, publish: false })

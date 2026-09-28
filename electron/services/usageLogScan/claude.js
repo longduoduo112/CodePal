@@ -105,7 +105,8 @@ async function scanClaudeLogs(start, end, deps = {}) {
   const scanLogFilesInRangeFn = deps.scanLogFilesInRangeFn || scanLogFilesInRange
   const homeDir = deps.homeDir || os.homedir()
 
-  const claudeBasePath = path.join(homeDir, '.claude', 'projects')
+  // Only trusted main-process consumers can override the isolated projects root.
+  const claudeBasePath = deps.claudeProjectsDir || path.join(homeDir, '.claude', 'projects')
   const exists = await pathExistsFn(claudeBasePath)
 
   if (!exists) {
