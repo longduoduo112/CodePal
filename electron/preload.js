@@ -212,10 +212,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   executeSkillCommand: (params) => ipcRenderer.invoke('skill-control:execute', params),
   adoptExternalSkill: (params) => ipcRenderer.invoke('skill-control:adopt', params),
 
-  // Plugin 控制中心：通过官方 CLI 读取和执行，写后重读原生状态。
-  getPluginControlSnapshot: (params) => ipcRenderer.invoke('plugin-control:get-snapshot', params),
-  executePluginCommand: (params) => ipcRenderer.invoke('plugin-control:execute', params),
-
   // V0.7 供应商切换 API 已断接线隔离（见 _disabled/api-config/），token 不再过渲染层
 
   // V1.9.8 外链导航防护

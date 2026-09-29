@@ -215,7 +215,7 @@ function SkillControlPage({ onNavigateToConfig, refreshSignal = 0 }) {
   return (
     <PageShell
       title="Skill 控制中心"
-      subtitle="这里只显示独立 Skill；Plugin 所带能力请到 Plugin 控制中心查看"
+      subtitle="这里只显示独立 Skill"
       className="page-shell--no-padding skill-control-page"
       actions={
         <>

@@ -52,7 +52,7 @@ function flattenScan(scan, origin, mutable, extra = {}) {
   return [...scan.skills.values()].map((skill) => ({ ...skill, origin, mutable, ...extra }))
 }
 
-/** 发现 Codex 独立 Skill；Plugin 子 Skill 由 Plugin 控制中心单独管理。 */
+/** 发现 Codex 独立 Skill；Plugin 子 Skill 由各工具官方管理，不进 Skill 控制中心。 */
 async function discoverCodexSkills({ homeDir }, deps = {}) {
   const officialRoot = path.join(homeDir, '.agents', 'skills')
   const legacyRoot = path.join(homeDir, '.codex', 'skills')

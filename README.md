@@ -1,6 +1,6 @@
 # CodePal — AI 编程的幕后助手
 
-> AI 编程工具负责写代码，CodePal 负责写代码之外的一切 —— 用量与订阅、会话状态、对话回顾、新项目初始化与 Skills / Plugins 跨工具管理。专为 **Claude Code / Codex / Cursor / Trae** 用户打造。
+> AI 编程工具负责写代码，CodePal 负责写代码之外的一切 —— 用量与订阅、会话状态、对话回顾、新项目初始化与 Skills 跨工具管理。专为 **Claude Code / Codex / Cursor / Trae** 用户打造。
 
 [![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/yunshu0909/CodePal/releases) [![version](https://img.shields.io/badge/version-v2.1.3-local.1-blue)](https://github.com/yunshu0909/CodePal/releases/latest) [![license](https://img.shields.io/badge/license-ISC-green)](#license)
 
@@ -78,10 +78,6 @@ CodePal 按用途分 4 组：**用量账单 · 项目开发 · 技能中心 · �
 - 中央仓库统一存放 Skill，分别查看、开关 Claude Code 与 Codex 里的启用状态
 - 按标签筛选、搜索；显示近 30 天调用次数，帮你精简不用的
 - 改 Codex 配置时只动目标那一行，保留你的注释和格式
-
-#### Plugins 管理
-
-统一查看 Claude Code、Codex 已安装的 Plugin：版本、来源、启用状态、包含哪些能力；可以安装、启用、停用、卸载（Codex 的启用 / 停用直接改 `config.toml` 里对应的一项，其余操作走官方 CLI）。
 
 ---
 

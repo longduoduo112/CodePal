@@ -53,7 +53,6 @@ const { setDshIsolatedRunner } = require('./services/usageLogScanService')
 const { createDshWorkerRunner } = require('./services/dshUsageWorkerClient')
 const { registerSkillUsageHandlers } = require('./handlers/registerSkillUsageHandlers')
 const { registerSkillControlHandlers } = require('./handlers/registerSkillControlHandlers')
-const { registerPluginControlHandlers } = require('./handlers/registerPluginControlHandlers')
 const { registerProjectInitHandlers } = require('./handlers/registerProjectInitHandlers')
 const { registerPermissionModeHandlers } = require('./handlers/permissionModeHandlers')
 const { registerModelConfigHandlers } = require('./handlers/modelConfigHandlers')
@@ -754,11 +753,6 @@ registerSkillUsageHandlers({
 })
 
 registerSkillControlHandlers({
-  ipcMain,
-  homeDir: os.homedir(),
-})
-
-registerPluginControlHandlers({
   ipcMain,
   homeDir: os.homedir(),
 })
