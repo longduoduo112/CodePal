@@ -6,6 +6,8 @@
  * - 聚合中央仓库与各工具 adapter 的独立 Skill 发现结果
  * - 提供软链接优先、原子复制兜底的安全部署与收进资产库能力
  * - 在写操作前统一拦截 project/plugin/system 等只读来源
+ * - 快照带每个工具的装载汇总（Skill 数 + 约多少 tokens，插件不算）、同一工具两份、每个位置的完整路径
+ * - 删除：资产库和各工具里指向它的那份一起删，任何一步失败全部恢复
  *
  * @module electron/services/skillControlService
  */
@@ -238,6 +240,85 @@ function sourceEnabled(source) {
   return true
 }
 
+const TOKEN_CHARS = 3.5
+
+/**
+ * 给页面显示的路径：家目录写成 ~
+ * @param {string} absolutePath
+ * @param {string} homeDir
+ * @returns {string}
+ */
+function displayPath(absolutePath, homeDir) {
+  if (absolutePath === homeDir) return '~'
+  return absolutePath.startsWith(`${homeDir}${path.sep}`) ? `~${absolutePath.slice(homeDir.length)}` : absolutePath
+}
+
+async function realpathOrNull(targetPath, deps = {}) {
+  try {
+    return await (deps.realpathFn || fs.realpath)(targetPath)
+  } catch {
+    return null
+  }
+}
+
+/** 名字 + 说明的字符数 ÷ 3.5，粗估进上下文的 tokens */
+function estimateTokens(items) {
+  const chars = items.reduce((sum, item) => sum + String(item.displayName || item.name || '').length + String(item.description || '').length, 0)
+  return Math.round(chars / TOKEN_CHARS)
+}
+
+/** 工具目录里同名、但 SKILL.md 已经找不到的条目（删了、快捷方式断了） */
+async function findMissingEntries(roots, deps = {}) {
+  const missing = []
+  for (const { toolId, root } of roots) {
+    let entries = []
+    try {
+      entries = await (deps.readdirFn || fs.readdir)(root, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      if (!entry.isSymbolicLink() || !isSafeSkillName(entry.name)) continue
+      const skillPath = path.join(root, entry.name)
+      if (!(await pathExists(path.join(skillPath, 'SKILL.md'), deps)) && !(await realpathOrNull(skillPath, deps))) {
+        missing.push({ toolId, name: entry.name, absolutePath: skillPath })
+      }
+    }
+  }
+  return missing
+}
+
+// 这些来源读不出时，整个工具的开关状态都说不准：工具本身、配置、Claude 设置，以及个人 Skill 目录（权限坏了不能当成一个都没装）
+const UNREADABLE_ORIGINS = new Set(['tool', 'config', 'settings', 'user', 'legacy'])
+
+/** 这个工具的状态读不出 */
+function toolUnreadable(errors) {
+  return errors.some((item) => UNREADABLE_ORIGINS.has(item.origin))
+}
+
+/**
+ * 某个工具实际装载的 Skill 汇总；插件带的不在 sources 里，自然不算
+ * @returns {object|null}
+ */
+function buildLoad(toolId, sources, errors) {
+  if (toolUnreadable(errors)) return null
+  const loaded = new Map()
+  for (const source of sources) {
+    if (!sourceEnabled(source) || loaded.has(source.name)) continue
+    loaded.set(source.name, source)
+  }
+  // 按来源分桶：个人（可写）+ claude.ai 同步 / Codex 系统；旧命令、项目来源不算 Skill 装载
+  const readOnlyOrigin = toolId === 'claude-code' ? 'synced' : 'system'
+  const personalItems = [...loaded.values()].filter((item) => item.mutable)
+  const readOnlyItems = [...loaded.values()].filter((item) => item.origin === readOnlyOrigin)
+  const items = [...personalItems, ...readOnlyItems]
+  const syncedBroken = toolId === 'claude-code' && errors.some((item) => item.origin === 'synced')
+  const load = { personal: personalItems.length, total: items.length, tokens: estimateTokens(items) }
+  if (toolId === 'claude-code') load.synced = syncedBroken ? null : readOnlyItems.length
+  else load.system = readOnlyItems.length
+  return load
+}
+
 /** 聚合中央仓库、Codex 与 Claude Code 的中立 Skill 快照。 */
 async function getSkillControlSnapshot(params = {}, overrides = {}) {
   const homeDir = params.homeDir || overrides.homeDir || os.homedir()
@@ -274,8 +355,18 @@ async function getSkillControlSnapshot(params = {}, overrides = {}) {
       name: toolNames[toolId],
       available: !result.errors.some((item) => item.origin === 'tool'),
       skillCount: new Set(result.sources.map((source) => source.name)).size,
+      load: buildLoad(toolId, result.sources, result.errors),
     }
   }
+  const missingEntries = await findMissingEntries([
+    { toolId: 'claude-code', root: path.join(homeDir, '.claude', 'skills') },
+    { toolId: 'codex', root: path.join(homeDir, '.agents', 'skills') },
+    { toolId: 'codex', root: path.join(homeDir, '.codex', 'skills') },
+  ], overrides)
+  const centralReal = await realpathOrNull(repoPath, overrides) || repoPath
+  // 家目录本身可能经过软链接（macOS 的 /var → /private/var）：解析后的路径也写成 ~
+  const homeReal = await realpathOrNull(homeDir, overrides) || homeDir
+  const showPath = (absolute) => (absolute.startsWith(`${homeReal}${path.sep}`) ? displayPath(absolute, homeReal) : displayPath(absolute, homeDir))
 
   const skills = [...allNames].sort((a, b) => a.localeCompare(b)).map((name) => {
     const managed = central.skills.get(name) || null
@@ -285,7 +376,7 @@ async function getSkillControlSnapshot(params = {}, overrides = {}) {
       const sources = discovery[toolId].sources.filter((source) => source.name === name)
       origins.push(...sources.map((source) => publicOrigin({ toolId, ...source })))
       // 工具目录读不了、或配置读不出（开关状态无法确定）→ 都显示为不可用，不能按缺省当成已启用
-      if (discovery[toolId].errors.some((item) => item.origin === 'tool' || item.origin === 'config')) {
+      if (toolUnreadable(discovery[toolId].errors)) {
         toolStates[toolId] = { enabled: null, state: 'unavailable', mutable: false }
         continue
       }
@@ -298,9 +389,14 @@ async function getSkillControlSnapshot(params = {}, overrides = {}) {
       let state = managed ? 'synced' : 'external'
       if (managed && preferred.manifest?.hash && managed.manifest?.hash && preferred.manifest.hash !== managed.manifest.hash) state = 'drifted'
       if (!enabled) state = 'disabled'
+      // 同一个工具的个人目录里同名的几份内容不一样（例如 ~/.agents/skills 和 ~/.codex/skills 各一份）；
+      // 同步来的、旧命令这类不同来源同名不算「两份」
+      const entities = sources.filter((source) => source.origin === 'user' || source.origin === 'legacy')
+      const hashes = new Set(entities.map((source) => source.manifest?.hash).filter(Boolean))
       toolStates[toolId] = {
         enabled,
         state,
+        duplicate: entities.length > 1 && hashes.size > 1,
         mutable: Boolean(preferred.mutable),
         origin: preferred.origin,
         pluginId: preferred.pluginId,
@@ -319,6 +415,29 @@ async function getSkillControlSnapshot(params = {}, overrides = {}) {
       tools: toolStates,
     }
   })
+
+  // 位置：资产库在前，再按工具列出每一份；快捷方式指到资产库以外时给实际位置；不在了标出
+  for (const skill of skills) {
+    const locations = []
+    const managed = central.skills.get(skill.name)
+    if (managed) locations.push({ toolId: 'central', path: displayPath(managed.absolutePath, homeDir), missing: false })
+    for (const toolId of Object.keys(adapters)) {
+      for (const source of discovery[toolId].sources.filter((item) => item.name === skill.name)) {
+        const location = { toolId, path: displayPath(source.absolutePath, homeDir), missing: false }
+        if (source.isSymlink) {
+          const real = await realpathOrNull(source.absolutePath, overrides)
+          if (real && real !== path.join(centralReal, skill.name) && !real.startsWith(`${centralReal}${path.sep}`)) {
+            location.target = showPath(real)
+          }
+        }
+        locations.push(location)
+      }
+    }
+    for (const entry of missingEntries.filter((item) => item.name === skill.name)) {
+      locations.push({ toolId: entry.toolId, path: displayPath(entry.absolutePath, homeDir), missing: true })
+    }
+    skill.locations = locations
+  }
 
   const managedSkills = skills.filter((skill) => skill.managed)
   return {
@@ -343,6 +462,54 @@ function assertMutableSource(source) {
   if (source && (source.mutable === false || READ_ONLY_ORIGINS.has(source.origin))) throw codedError('ORIGIN_READ_ONLY')
 }
 
+/**
+ * 从资产库删除一个 Skill，各工具里指向它的那份（快捷方式或内容一样的副本）一起删。
+ * 先把每一处改名挪开，全部挪成功再真删；任何一处挪不动就把已挪的挪回去，一处都不删。
+ * 工具的配置记录（skillOverrides、skills.config）不动：文件夹没了，这些记录不起作用。
+ * @param {object} params
+ * @param {object} deps - renameFn / rmFn 可注入
+ * @returns {Promise<{success: true, deleted: string[]}>}
+ */
+async function deleteSkillEverywhere({ repoPath, homeDir, skillName }, deps = {}) {
+  const centralPath = path.join(repoPath, skillName)
+  if (!(await pathExists(path.join(centralPath, 'SKILL.md'), deps))) throw codedError('SKILL_NOT_FOUND')
+  const centralReal = await realpathOrNull(centralPath, deps) || centralPath
+  const centralManifest = await buildSkillManifest(centralPath, deps)
+  const targets = [centralPath]
+  for (const candidate of [
+    path.join(homeDir, '.claude', 'skills', skillName),
+    path.join(homeDir, '.agents', 'skills', skillName),
+    path.join(homeDir, '.codex', 'skills', skillName),
+  ]) {
+    let stat
+    try {
+      stat = await (deps.lstatFn || fs.lstat)(candidate)
+    } catch {
+      continue
+    }
+    if (stat.isSymbolicLink()) {
+      if ((await realpathOrNull(candidate, deps)) === centralReal) targets.push(candidate)
+    } else if (stat.isDirectory()) {
+      const manifest = await buildSkillManifest(candidate, deps).catch(() => null)
+      if (manifest?.hash === centralManifest.hash) targets.push(candidate)
+    }
+  }
+  const operationId = crypto.randomUUID()
+  const moved = []
+  try {
+    for (const target of targets) {
+      const parked = `${target}.codepal-delete-${operationId}`
+      await (deps.renameFn || fs.rename)(target, parked)
+      moved.push({ target, parked })
+    }
+  } catch (error) {
+    for (const { target, parked } of moved.reverse()) await fs.rename(parked, target).catch(() => {})
+    throw codedError(mapFsError(error), error)
+  }
+  for (const { parked } of moved) await (deps.rmFn || fs.rm)(parked, { recursive: true, force: true }).catch(() => {})
+  return { success: true, deleted: targets.map((target) => displayPath(target, homeDir)) }
+}
+
 /** 执行统一 Skill 命令，并在 adapter 写入后由调用方重新读取原生状态。 */
 async function executeSkillCommand(params = {}, overrides = {}) {
   if (!isSafeSkillName(params.skillName)) throw codedError('INVALID_SKILL_NAME')
@@ -350,6 +517,7 @@ async function executeSkillCommand(params = {}, overrides = {}) {
   const homeDir = params.homeDir || overrides.homeDir || os.homedir()
   const repoPath = expandHome(params.repoPath, homeDir)
   if (!repoPath) throw codedError('INVALID_REPO_PATH')
+  if (params.action === 'delete') return deleteSkillEverywhere({ repoPath, homeDir, skillName: params.skillName }, overrides)
   const adapter = loadAdapters(overrides)[params.toolId]
   if (!adapter) throw codedError('TOOL_NOT_SUPPORTED')
   const discovery = await adapter.discover({ homeDir, projectRoots: params.projectRoots || [], repoPath }, overrides)
@@ -400,4 +568,6 @@ module.exports = {
   getSkillControlSnapshot,
   executeSkillCommand,
   adoptExternalSkill,
+  deleteSkillEverywhere,
+  displayPath,
 }

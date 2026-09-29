@@ -1,0 +1,53 @@
+/**
+ * Skill 管理页专属样式（.sk-）：只写尺寸和排布，颜色、字体一律用 tokens 变量，不声明变量
+ * 照签收定稿 specs/skills-redesign/Skill管理-定稿/ §11.1
+ */
+
+/* 右栏标题折行显示全名（样式包默认单行省略） */
+.sk-page .np-pane--detail .np-pane-hd .ttl { margin: 0; white-space: normal; word-break: break-all; }
+/* 右栏行下面的说明字折行显示全 */
+.sk-page .np-pane--detail .np-row .ds { white-space: normal; }
+.sk-page .np-pane--detail .np-row .lb { white-space: normal; word-break: break-all; }
+
+/* 工具行：图标 + 名称 */
+.sk-page .sk-tool { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sk-page .sk-ic-claude { background: var(--tool-claude); }
+.sk-page .sk-ic-codex { background: var(--tool-codex); }
+
+/* 装载卡：数字 22 圆体、来源色条、来源行 */
+.sk-page .sk-tool-card + .sk-tool-card { margin-top: 12px; }
+.sk-page .sk-load { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.sk-page .sk-count { font-family: var(--num); font-size: 22px; line-height: 26px; font-weight: 700; }
+.sk-page .sk-count--na { color: var(--fg-3); }
+.sk-page .sk-load-unit { font-size: 12px; color: var(--fg-3); }
+.sk-page .sk-num { font-family: var(--num); }
+.sk-page .sk-stack { display: flex; gap: 2px; height: 6px; margin-top: 10px; border-radius: 3px; overflow: hidden; }
+.sk-page .sk-stack i { display: block; height: 100%; flex-basis: 0; }
+.sk-page .sk-seg-personal { background: var(--m0); }
+.sk-page .sk-seg-readonly { background: var(--m4); }
+.sk-page .sk-seg-empty { flex-grow: 1; background: var(--track); }
+.sk-page .sk-rows { margin-top: 4px; }
+.sk-page .sk-key { display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; }
+.sk-page .sk-n { min-width: 24px; font-family: var(--num); font-weight: 600; text-align: right; }
+.sk-page .sk-tool-card .np-errline { margin-top: 12px; }
+.sk-page .sk-grow { flex: 1; min-width: 0; }
+.sk-page .sk-block { margin-bottom: 12px; }
+.sk-page .sk-chev { width: 10px; height: 10px; fill: none; stroke: var(--fg-4); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 位置：名字一行、完整路径一行，折行不省略 */
+.sk-page .sk-prow { align-items: flex-start; }
+.sk-page .sk-prow .lb { font-weight: 400; }
+.sk-page .sk-p { margin-top: 2px; font-size: 11.5px; line-height: 15px; color: var(--fg-2); word-break: break-all; user-select: text; }
+.sk-page .sk-p.sk-to { color: var(--fg-3); }
+.sk-page .sk-p.sk-bad { color: var(--red-fg); }
+
+/* 说明放白底，不装卡 */
+.sk-page .sk-desc p { margin: 0; }
+
+/* 左栏：一句话、搜索无结果、骨架宽度 */
+.sk-page .sk-list-note { padding: 4px 8px 0; }
+.sk-page .sk-search-empty { padding: 4px 8px 0; }
+.sk-page .sk-sk-60 { width: 60px; }
+.sk-page .sk-sk-90 { width: 90px; }
+.sk-page .sk-sk-120 { width: 120px; }
+.sk-page .sk-sk-160 { width: 160px; }

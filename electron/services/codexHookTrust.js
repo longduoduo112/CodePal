@@ -50,10 +50,11 @@ function findCodexBinary() {
  * 起一个 codex app-server，按行收发 JSON-RPC
  * @param {string} codexBin
  * @param {object} env
+ * @param {Function} [spawnFn] - 测试注入假进程用，默认 child_process.spawn
  * @returns {{call: (method: string, params: object) => Promise<object>, notify: (method: string) => void, close: () => void}}
  */
-function openAppServer(codexBin, env) {
-  const child = spawn(codexBin, ['app-server'], { stdio: ['pipe', 'pipe', 'ignore'], env })
+function openAppServer(codexBin, env, spawnFn = spawn) {
+  const child = spawnFn(codexBin, ['app-server'], { stdio: ['pipe', 'pipe', 'ignore'], env })
   const pending = new Map()
   let buffer = ''
   let seq = 0
@@ -85,6 +86,8 @@ function openAppServer(codexBin, env) {
   }
   child.on('error', (error) => failAll(error))
   child.on('exit', () => failAll(new Error('Codex 接口提前退出')))
+  // Codex 中途退出时往关掉的管道写会报 EPIPE；不接住就成了主进程的未捕获异常
+  child.stdin.on('error', (error) => failAll(error))
 
   return {
     call(method, params) {
@@ -163,4 +166,4 @@ async function trustCodePalCodexHooks({ configPath, codexBin = findCodexBinary()
   }
 }
 
-module.exports = { trustCodePalCodexHooks, findCodexBinary }
+module.exports = { trustCodePalCodexHooks, findCodexBinary, openAppServer }

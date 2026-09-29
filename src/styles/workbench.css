@@ -198,8 +198,9 @@
 }
 
 /* 新样式页面贴边撑满：显示新样式页面时，内容区不留旧白卡的 32 边距
-   （keep-alive 的页面只看没隐藏的那个） */
+   （keep-alive 的页面只看没隐藏的那个；Skills 管理套在 SkillManagerModule 里） */
 .content-area:has(> .page-shell--native),
+.content-area:has(> .skill-manager-module > .page-shell--native),
 .content-area:has(> .keep-alive-wrapper:not([hidden]) .page-shell--native) {
   padding: 0;
 }

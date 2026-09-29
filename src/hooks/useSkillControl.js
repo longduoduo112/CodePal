@@ -2,6 +2,7 @@
  * Skill 控制中心状态 Hook
  *
  * 只通过统一 IPC 读取与写入；请求序号抑制 watcher/手动刷新造成的旧响应回写。
+ * 写操作失败时如果主进程带回了新快照，也用它（开关状态不确定时按实际显示）。
  *
  * @module hooks/useSkillControl
  */
@@ -64,7 +65,16 @@ export default function useSkillControl(refreshSignal = 0) {
       if (!api?.executeSkillCommand) return { success: false, error: 'API_NOT_AVAILABLE' }
       const repoPath = repoPathRef.current || await dataStore.getRepoPath()
       const result = await api.executeSkillCommand({ repoPath, skillName, toolId, action, source, projectRoots: [], ...options })
-      if (!result?.success) return { success: false, error: result?.error || 'SKILL_CONTROL_COMMAND_FAILED' }
+      if (!result?.success) {
+        // 失败时主进程会尽量带回一份新快照（状态不确定时要按实际显示）
+        if (result?.snapshot) {
+          requestIdRef.current += 1
+          setSnapshot(result.snapshot)
+          setError(null)
+          setStatus('ready')
+        }
+        return { success: false, error: result?.error || 'SKILL_CONTROL_COMMAND_FAILED', snapshot: result?.snapshot || null }
+      }
       if (result.snapshot) {
         requestIdRef.current += 1
         setSnapshot(result.snapshot)
