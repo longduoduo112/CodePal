@@ -1,0 +1,69 @@
+/**
+ * 文档查阅页专属样式（Native+）
+ *
+ * 负责：
+ * - 左栏宽度跟着拖动走（宽度由页面按拖动结果写在 .np-split 上）
+ * - 拖动条盖在两栏之间的 0.5px 竖线上：看不见，只换光标
+ * - 相邻文件夹根行的间距、树里一句话（扫描中 / 没有 .md）的缩进、搜索无结果那一行
+ * - 正文加载骨架的尺寸
+ *
+ * 颜色、字号、线、圆角都来自 styles/native.css 的通用类，这里只写本页结构和尺寸。
+ * 设计事实源：specs/docs-browser-redesign/文档查阅-定稿/
+ *
+ * @module pages/docs/docs.css
+ */
+
+.db-page .np-split {
+  grid-template-columns: var(--db-list-w, 220px) minmax(0, 1fr);
+}
+
+/* 拖动条：8 宽，居中压在竖线上；不显示颜色（覆盖全局 .resize-handle 的蓝色悬停） */
+.db-page .np-split > .resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--db-list-w, 220px) - 4px);
+  width: 8px;
+  background: transparent;
+}
+
+.db-page .np-split > .resize-handle:hover,
+.db-page .np-split > .resize-handle:active {
+  background: transparent;
+}
+
+/* 相邻两个文件夹根行之间 2（根行各自包在一组里，样式包的相邻选择器够不着） */
+.db-page .np-tree-group + .np-tree-group > .np-tr--root {
+  margin-top: 2px;
+}
+
+/* 树里的一句话和第一级文件名对齐（8 + 箭头 10 + 间距 4 ≈ 24） */
+.db-page .np-empty.db-tree-note {
+  padding: 4px 8px 4px 24px;
+}
+
+/* 搜索无结果：一句话 + 「清除搜索」同一行 */
+.db-page .db-search-empty {
+  padding: 4px 8px 0;
+}
+
+.db-page .db-search-empty .np-empty {
+  padding: 0;
+}
+
+/* 正文加载骨架：三段，每段一短两长 */
+.db-page .db-sk {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.db-page .db-sk-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.db-page .db-sk-40 { width: 40%; }
+.db-page .db-sk-75 { width: 75%; }
+.db-page .db-sk-100 { width: 100%; }

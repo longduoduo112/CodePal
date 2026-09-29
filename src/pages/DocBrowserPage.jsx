@@ -1,19 +1,28 @@
 /**
- * 文档查阅页面
+ * 文档查阅页（Native+）
  *
  * 负责：
- * - 左栏：文件夹管理（添加/移除）+ 文件树浏览 + 文件名搜索
- * - 右栏：MarkdownRenderer 渲染选中的 .md 文件内容
+ * - 新样式外壳，页名「文档查阅」在工具栏；下面是双栏：左栏文件夹与目录树 / 搜索结果，右栏 Markdown 正文
+ * - 左栏：栏头搜索框，栏体文件夹根行 + 展开那一个的目录树（或搜索结果），栏底「＋ 添加文件夹」；两栏之间可拖动调宽（默认 220，200–500）
+ * - 右栏：栏头文件名 + 所在文件夹路径与大小，正文 MarkdownRenderer（np-read np-doc），开头元数据与 HTML 注释不显示
+ * - 规则见 docs/design-operating-system.md 3.8「双栏」「目录树」「长文阅读」、3.12「状态呈现」
+ *
+ * 设计事实源：specs/docs-browser-redesign/文档查阅-定稿/
  *
  * @module pages/DocBrowserPage
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import PageShell from '../components/PageShell'
+import Button from '../components/Button/Button'
+import StateView from '../components/StateView/StateView'
 import MarkdownRenderer from '../components/MarkdownRenderer/MarkdownRenderer'
 import { toast } from '../components/Toast'
 import useResizableSidebar from '../hooks/useResizableSidebar'
-import '../styles/doc-browser.css'
+import './docs/docs.css'
+
+// 空态图标：文件夹（viewBox 0 0 16 16，画在整块状态的灰色方块里）
+const FOLDER_EMPTY_ICON = <path d="M2.5 4.5h4l1.5 1.5h5.5v6.5h-11z" />
 
 /**
  * 格式化文件大小
@@ -28,6 +37,29 @@ function formatSize(bytes) {
 }
 
 /**
+ * 路径显示：超过三级时中间省略，保留开头（文件夹名）和最后一级（总纲 3.5「路径」）
+ * @param {string[]} segs - 路径各级
+ * @returns {{short: string, full: string}}
+ */
+function shortPath(segs) {
+  const full = segs.join(' / ')
+  const short = segs.length > 3 ? `${segs[0]} / … / ${segs[segs.length - 1]}` : full
+  return { short, full }
+}
+
+/**
+ * 交给渲染器之前去掉只给作者 / AI 看的内容：开头两行横线包着的元数据、<!-- --> 注释
+ * 只影响页面显示，不改文件
+ * @param {string} content - 文件原文
+ * @returns {string}
+ */
+function stripForDisplay(content) {
+  return content
+    .replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+}
+
+/**
  * 从扁平文件列表构建 N 层目录树
  * @param {Array} files - 扁平文件列表（含 relativePath）
  * @returns {{files: Array, dirs: Map<string, {files, dirs}>}}
@@ -37,21 +69,16 @@ function buildFileTree(files) {
 
   for (const file of files) {
     const parts = file.relativePath.split('/')
-    if (parts.length === 1) {
-      // 根目录文件
-      root.files.push(file)
-    } else {
-      // 按路径逐级放入子目录
-      let current = root
-      for (let i = 0; i < parts.length - 1; i++) {
-        const dirName = parts[i]
-        if (!current.dirs.has(dirName)) {
-          current.dirs.set(dirName, { files: [], dirs: new Map() })
-        }
-        current = current.dirs.get(dirName)
+    let current = root
+    // 按路径逐级放入子目录，最后一段是文件名
+    for (let i = 0; i < parts.length - 1; i++) {
+      const dirName = parts[i]
+      if (!current.dirs.has(dirName)) {
+        current.dirs.set(dirName, { files: [], dirs: new Map() })
       }
-      current.files.push(file)
+      current = current.dirs.get(dirName)
     }
+    current.files.push(file)
   }
 
   return root
@@ -71,12 +98,51 @@ function countTreeFiles(node) {
 }
 
 /**
- * 递归渲染目录树节点
- * 根级文件直接显示，子目录可折叠（默认折叠）
+ * 让整行可点的 div 也能用键盘触发（回车 / 空格）
+ * @param {() => void} fn - 点击时要做的事
+ * @returns {(e: KeyboardEvent) => void}
  */
-function FileTreeNode({ name, node, depth, selectedFile, onFileClick }) {
-  const [expanded, setExpanded] = useState(false)
-  const totalFiles = useMemo(() => countTreeFiles(node), [node])
+function onActivateKey(fn) {
+  return (e) => {
+    if (e.target !== e.currentTarget) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      fn()
+    }
+  }
+}
+
+/** 展开箭头：收起朝右、展开朝下（直接换图形，不做旋转动画） */
+function Chevron({ open }) {
+  return (
+    <svg className="chev" viewBox="0 0 10 10" aria-hidden="true">
+      <path d={open ? 'M2.5 4 5 6.5 7.5 4' : 'M4 2.5 6.5 5 4 7.5'} />
+    </svg>
+  )
+}
+
+/** 树行图标：14px 灰色线形（文件夹 / 文档） */
+function TreeIcon({ kind }) {
+  return (
+    <svg className="np-ti" viewBox="0 0 14 14" aria-hidden="true">
+      <path d={kind === 'file' ? 'M3 1.5h5.2L11 4.3v8.2H3zM8 1.5v3h3' : 'M1.5 3.5h4l1.2 1.3h5.8v6.7h-11z'} />
+    </svg>
+  )
+}
+
+/**
+ * 目录树的一层：先子目录（右端文件数），再文件；各自按名称排序
+ * 子目录的展开状态由页面统一保存（expandedDirs），搜索前后不丢
+ * @param {object} props
+ * @param {{files: Array, dirs: Map}} props.node - 这一层的节点
+ * @param {string} props.path - 这一层相对文件夹根的路径（根下为 ''）
+ * @param {number} props.level - 缩进级别（文件夹根下为 0）
+ * @param {Set<string>} props.expandedDirs - 展开着的子目录路径
+ * @param {(dirPath: string) => void} props.onToggleDir - 展开 / 收起子目录
+ * @param {string|null} props.selectedFile - 当前选中文件的完整路径
+ * @param {(fullPath: string) => void} props.onFileClick - 点文件
+ */
+function FileTreeLevel({ node, path, level, expandedDirs, onToggleDir, selectedFile, onFileClick }) {
   const sortedDirs = useMemo(
     () => [...node.dirs.entries()].sort((a, b) => a[0].localeCompare(b[0])),
     [node.dirs]
@@ -87,48 +153,58 @@ function FileTreeNode({ name, node, depth, selectedFile, onFileClick }) {
   )
 
   return (
-    <div className="db-tree-node">
-      {/* 目录标题行（根级不显示） */}
-      {name && (
-        <button
-          className="db-dir-toggle"
-          onClick={() => setExpanded(prev => !prev)}
-        >
-          <span className="db-dir-arrow">{expanded ? '▼' : '▶'}</span>
-          <span className="db-dir-icon-folder">{expanded ? '📂' : '📁'}</span>
-          <span className="db-dir-name">{name}</span>
-          <span className="db-dir-count">{totalFiles}</span>
-        </button>
-      )}
-
-      {/* 展开后显示子目录和文件 */}
-      {(expanded || !name) && (
-        <div className={name ? 'db-tree-children' : ''}>
-          {/* 先渲染子目录 */}
-          {sortedDirs.map(([dirName, dirNode]) => (
-            <FileTreeNode
-              key={dirName}
-              name={dirName}
-              node={dirNode}
-              depth={(depth || 0) + 1}
-              selectedFile={selectedFile}
-              onFileClick={onFileClick}
-            />
-          ))}
-          {/* 再渲染文件 */}
-          {sortedFiles.map(file => (
-            <button
-              key={file.fullPath}
-              className={`db-file-item ${selectedFile === file.fullPath ? 'active' : ''}`}
-              onClick={() => onFileClick(file.fullPath)}
+    <>
+      {sortedDirs.map(([dirName, dirNode]) => {
+        const dirPath = path ? `${path}/${dirName}` : dirName
+        const open = expandedDirs.has(dirPath)
+        return (
+          <div key={dirPath} className="np-tree-group">
+            <div
+              className="np-tr"
+              style={{ '--lv': level }}
+              role="button"
+              tabIndex={0}
+              aria-expanded={open}
+              title={dirName}
+              onClick={() => onToggleDir(dirPath)}
+              onKeyDown={onActivateKey(() => onToggleDir(dirPath))}
             >
-              <span className="db-file-icon">📄</span>
-              <span className="db-file-name">{file.name}</span>
-            </button>
-          ))}
+              <Chevron open={open} />
+              <TreeIcon kind="dir" />
+              <span className="nm">{dirName}</span>
+              <span className="cnt">{countTreeFiles(dirNode)}</span>
+            </div>
+            {open && (
+              <FileTreeLevel
+                node={dirNode}
+                path={dirPath}
+                level={level + 1}
+                expandedDirs={expandedDirs}
+                onToggleDir={onToggleDir}
+                selectedFile={selectedFile}
+                onFileClick={onFileClick}
+              />
+            )}
+          </div>
+        )
+      })}
+      {sortedFiles.map(file => (
+        <div
+          key={file.fullPath}
+          className={`np-tr${selectedFile === file.fullPath ? ' on' : ''}`}
+          style={{ '--lv': level }}
+          role="button"
+          tabIndex={0}
+          title={file.name}
+          onClick={() => onFileClick(file.fullPath)}
+          onKeyDown={onActivateKey(() => onFileClick(file.fullPath))}
+        >
+          <span className="sp" />
+          <TreeIcon kind="file" />
+          <span className="nm">{file.name}</span>
         </div>
-      )}
-    </div>
+      ))}
+    </>
   )
 }
 
@@ -136,40 +212,33 @@ export default function DocBrowserPage() {
   // 文件夹列表
   const [folders, setFolders] = useState([])
   const [foldersLoading, setFoldersLoading] = useState(true)
-  // 当前展开的文件夹
+  // 当前展开的文件夹（同一时间只展开一个）和它里面展开着的子目录
   const [expandedFolder, setExpandedFolder] = useState(null)
+  const [expandedDirs, setExpandedDirs] = useState(() => new Set())
   // 展开文件夹的文件列表
   const [files, setFiles] = useState([])
   const [filesLoading, setFilesLoading] = useState(false)
-  // 当前选中的文件
+  // 当前选中的文件与它的内容
   const [selectedFile, setSelectedFile] = useState(null)
-  // 文件内容
   const [fileContent, setFileContent] = useState('')
   const [fileSize, setFileSize] = useState(0)
   const [contentLoading, setContentLoading] = useState(false)
   const [contentError, setContentError] = useState(null)
   // 搜索
   const [searchQuery, setSearchQuery] = useState('')
-  // 所有文件夹的文件缓存（搜索用）
+  // 展开过的文件夹的文件缓存（搜索只搜这些）
   const [allFilesCache, setAllFilesCache] = useState({})
-  // 竞态防护
+  // 添加文件夹扫描期间，栏底按钮禁用
+  const [adding, setAdding] = useState(false)
+  // 竞态防护：快速连点时旧请求不覆盖新结果
   const loadFileSeqRef = useRef(0)
   const loadFolderSeqRef = useRef(0)
 
   const isSearchMode = searchQuery.trim().length > 0
-  // 可拖拽侧边栏
-  const { sidebarWidth, resizerProps } = useResizableSidebar(280, 200, 500)
+  // 两栏之间可拖动调宽：默认 220，范围 200–500
+  const { sidebarWidth, resizerProps } = useResizableSidebar(220, 200, 500)
 
-  const showToast = useCallback((message, type = 'info') => {
-    toast.show(message, type)
-  }, [])
-
-  // 加载文件夹列表
-  useEffect(() => {
-    loadFolders()
-  }, [])
-
-  const loadFolders = async () => {
+  const loadFolders = useCallback(async () => {
     setFoldersLoading(true)
     try {
       const result = await window.electronAPI.docListFolders()
@@ -181,36 +250,46 @@ export default function DocBrowserPage() {
     } finally {
       setFoldersLoading(false)
     }
-  }
+  }, [])
 
-  // 添加文件夹
+  useEffect(() => {
+    loadFolders()
+  }, [loadFolders])
+
+  // 添加文件夹：选目录 → 登记（扫描期间按钮禁用）→ 刷新列表并自动展开它
   const handleAddFolder = useCallback(async () => {
     const selectResult = await window.electronAPI.docSelectFolder()
     if (!selectResult.success || !selectResult.data) return
 
-    const addResult = await window.electronAPI.docAddFolder(selectResult.data)
+    setAdding(true)
+    let addResult
+    try {
+      addResult = await window.electronAPI.docAddFolder(selectResult.data)
+    } finally {
+      setAdding(false)
+    }
     if (!addResult.success) {
-      showToast(addResult.error, addResult.errorCode === 'DUPLICATE' ? 'warning' : 'error')
+      if (addResult.errorCode === 'DUPLICATE') toast.warning(addResult.error)
+      else toast.error(addResult.error)
       return
     }
 
     const { name, fileCount, files: scannedFiles } = addResult.data
 
     if (fileCount === 0) {
-      showToast('文件夹下没有找到 .md 文件', 'warning')
+      toast.warning('文件夹下没有找到 .md 文件')
     } else {
-      showToast(`已添加文件夹「${name}」，共发现 ${fileCount} 个 .md 文件`, 'success')
+      toast.success(`已添加文件夹「${name}」，共发现 ${fileCount} 个 .md 文件`)
     }
 
-    // 刷新列表并自动展开新文件夹
     await loadFolders()
     setExpandedFolder(selectResult.data)
+    setExpandedDirs(new Set())
     setFiles(scannedFiles || [])
-    // 缓存文件列表供搜索用
     setAllFilesCache(prev => ({ ...prev, [selectResult.data]: scannedFiles || [] }))
-  }, [showToast])
+  }, [loadFolders])
 
-  // 移除文件夹
+  // 移除文件夹：只从列表里拿掉，不动磁盘上的文件
   const handleRemoveFolder = useCallback(async (folderPath, e) => {
     e.stopPropagation()
     const folderName = folders.find(f => f.path === folderPath)?.name || ''
@@ -218,17 +297,17 @@ export default function DocBrowserPage() {
     try {
       const result = await window.electronAPI.docRemoveFolder(folderPath)
       if (!result.success) {
-        showToast(result.error || '删除文件夹失败', 'error')
+        toast.error(result.error || '删除文件夹失败')
         return
       }
     } catch (err) {
-      showToast(`删除失败: ${err.message}`, 'error')
+      toast.error(`删除失败: ${err.message}`)
       return
     }
 
-    // 清理状态
     if (expandedFolder === folderPath) {
       setExpandedFolder(null)
+      setExpandedDirs(new Set())
       setFiles([])
     }
     if (selectedFile?.startsWith(folderPath)) {
@@ -242,26 +321,27 @@ export default function DocBrowserPage() {
       return next
     })
     await loadFolders()
-    showToast(`文件夹「${folderName}」已移除`, 'success')
-  }, [folders, expandedFolder, selectedFile, showToast])
+    toast.success(`文件夹「${folderName}」已移除`)
+  }, [folders, expandedFolder, selectedFile, loadFolders])
 
-  // 展开/折叠文件夹
+  // 展开 / 收起文件夹；路径失效的点了不展开
   const handleFolderClick = useCallback(async (folder) => {
     if (!folder.valid) return
 
     if (expandedFolder === folder.path) {
       setExpandedFolder(null)
+      setExpandedDirs(new Set())
       setFiles([])
       return
     }
 
     setExpandedFolder(folder.path)
+    setExpandedDirs(new Set())
     setFilesLoading(true)
     const seq = ++loadFolderSeqRef.current
 
     try {
       const result = await window.electronAPI.docListFiles(folder.path)
-      // 防止旧请求覆盖新结果
       if (seq !== loadFolderSeqRef.current) return
       if (result.success) {
         setFiles(result.data)
@@ -277,12 +357,22 @@ export default function DocBrowserPage() {
     }
   }, [expandedFolder])
 
-  // 点击文件
-  const handleFileClick = useCallback(async (filePath) => {
-    if (selectedFile === filePath) return
+  const handleToggleDir = useCallback((dirPath) => {
+    setExpandedDirs(prev => {
+      const next = new Set(prev)
+      if (next.has(dirPath)) next.delete(dirPath)
+      else next.add(dirPath)
+      return next
+    })
+  }, [])
 
+  /**
+   * 读取文件内容进右栏
+   * @param {string} filePath - 完整路径
+   * @param {boolean} isRetry - 重试时失败要弹提示
+   */
+  const readFile = useCallback(async (filePath, isRetry) => {
     const seq = ++loadFileSeqRef.current
-    setSelectedFile(filePath)
     setContentLoading(true)
     setContentError(null)
 
@@ -294,46 +384,30 @@ export default function DocBrowserPage() {
         setFileSize(result.data.size)
       } else {
         setContentError(result.error)
+        if (isRetry) toast.error('文件读取失败，文件可能已被删除或移动')
       }
     } catch (err) {
       if (seq !== loadFileSeqRef.current) return
       setContentError(err.message)
+      if (isRetry) toast.error('文件读取失败')
     } finally {
       if (seq === loadFileSeqRef.current) {
         setContentLoading(false)
       }
     }
-  }, [selectedFile])
+  }, [])
 
-  // 重试读取
-  const handleRetry = useCallback(async () => {
-    if (!selectedFile) return
-    const seq = ++loadFileSeqRef.current
-    setContentLoading(true)
-    setContentError(null)
+  const handleFileClick = useCallback((filePath) => {
+    if (selectedFile === filePath) return
+    setSelectedFile(filePath)
+    readFile(filePath, false)
+  }, [selectedFile, readFile])
 
-    try {
-      const result = await window.electronAPI.docReadFile(selectedFile)
-      if (seq !== loadFileSeqRef.current) return
-      if (result.success) {
-        setFileContent(result.data.content)
-        setFileSize(result.data.size)
-      } else {
-        setContentError(result.error)
-        showToast('文件读取失败，文件可能已被删除或移动', 'error')
-      }
-    } catch (err) {
-      if (seq !== loadFileSeqRef.current) return
-      setContentError(err.message)
-      showToast('文件读取失败', 'error')
-    } finally {
-      if (seq === loadFileSeqRef.current) {
-        setContentLoading(false)
-      }
-    }
-  }, [selectedFile, showToast])
+  const handleRetry = useCallback(() => {
+    if (selectedFile) readFile(selectedFile, true)
+  }, [selectedFile, readFile])
 
-  // 搜索：在所有已缓存的文件中按文件名过滤
+  // 搜索：在展开过的文件夹里按文件名过滤，不区分大小写
   const searchResults = useMemo(() => {
     if (!isSearchMode) return []
     const keyword = searchQuery.trim().toLowerCase()
@@ -349,199 +423,183 @@ export default function DocBrowserPage() {
     return results
   }, [searchQuery, allFilesCache, folders, isSearchMode])
 
-  // 获取选中文件的相对路径（用于信息条）
-  const selectedRelativePath = useMemo(() => {
-    if (!selectedFile || !expandedFolder) return selectedFile || ''
-    // 从搜索结果或文件列表中找到
-    for (const f of files) {
-      if (f.fullPath === selectedFile) return f.relativePath
-    }
-    for (const folderFiles of Object.values(allFilesCache)) {
-      for (const f of folderFiles) {
-        if (f.fullPath === selectedFile) return f.relativePath
+  // 选中文件所在的文件夹路径各级（右栏元信息）：文件夹名 + 子目录
+  const selectedWhere = useMemo(() => {
+    if (!selectedFile) return null
+    for (const [folderPath, folderFiles] of Object.entries({ ...allFilesCache, [expandedFolder || '']: files })) {
+      const hit = folderFiles.find(f => f.fullPath === selectedFile)
+      if (hit) {
+        const folderName = folders.find(f => f.path === folderPath)?.name || folderPath
+        return shortPath([folderName, ...(hit.dir ? hit.dir.split('/') : [])])
       }
     }
-    return selectedFile
-  }, [selectedFile, files, allFilesCache, expandedFolder])
+    return { short: selectedFile, full: selectedFile }
+  }, [selectedFile, files, allFilesCache, expandedFolder, folders])
 
-  // 文件分组
+  const selectedName = selectedFile ? selectedFile.split(/[\\/]/).pop() : ''
   const fileTree = useMemo(() => buildFileTree(files), [files])
+  const displayContent = useMemo(() => stripForDisplay(fileContent), [fileContent])
+  // 还没有文件夹时整块空态里已经有「添加文件夹」，栏底那行不重复
+  const showFooter = foldersLoading || folders.length > 0
+
+  /** 左栏：搜索结果 */
+  const renderSearch = () => {
+    if (searchResults.length === 0) {
+      return (
+        <div className="np-hstack db-search-empty">
+          <span className="np-empty">无匹配文件</span>
+          <Button variant="ghost" className="np-btn-text" onClick={() => setSearchQuery('')}>清除搜索</Button>
+        </div>
+      )
+    }
+    return (
+      <>
+        <div className="np-lg"><span><span className="num">{searchResults.length}</span> 个匹配文件</span></div>
+        {searchResults.map(file => {
+          const where = shortPath([file.folderName, ...(file.dir ? file.dir.split('/') : [])])
+          return (
+            <div
+              key={file.fullPath}
+              className={`np-li${selectedFile === file.fullPath ? ' on' : ''}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => handleFileClick(file.fullPath)}
+              onKeyDown={onActivateKey(() => handleFileClick(file.fullPath))}
+            >
+              <b title={file.name}>{file.name}</b>
+              <span className="d" title={where.full}>{where.short}</span>
+            </div>
+          )
+        })}
+      </>
+    )
+  }
+
+  /** 左栏：文件夹根行 + 展开的那一个的目录树 */
+  const renderFolders = () => folders.map(folder => {
+    const open = expandedFolder === folder.path && folder.valid
+    return (
+      <div key={folder.path} className="np-tree-group">
+        <div
+          className="np-tr np-tr--root"
+          role="button"
+          tabIndex={0}
+          aria-expanded={open}
+          title={folder.path}
+          onClick={() => handleFolderClick(folder)}
+          onKeyDown={onActivateKey(() => handleFolderClick(folder))}
+        >
+          {folder.valid ? <Chevron open={open} /> : <span className="sp" />}
+          <TreeIcon kind="dir" />
+          <span className="nm">{folder.name}</span>
+          {folder.valid
+            ? <span className="cnt">{folder.fileCount}</span>
+            : <span className="np-tag np-tag--orange">找不到</span>}
+          <Button variant="ghost" className="np-btn-text np-tr-rm" onClick={(e) => handleRemoveFolder(folder.path, e)}>移除</Button>
+        </div>
+        {open && (
+          filesLoading ? <div className="np-empty db-tree-note">扫描中...</div>
+            : files.length === 0 ? <div className="np-empty db-tree-note">此文件夹下没有 .md 文件</div>
+              : (
+                <FileTreeLevel
+                  node={fileTree}
+                  path=""
+                  level={0}
+                  expandedDirs={expandedDirs}
+                  onToggleDir={handleToggleDir}
+                  selectedFile={selectedFile}
+                  onFileClick={handleFileClick}
+                />
+              )
+        )}
+      </div>
+    )
+  })
+
+  /** 右栏正文：读取中出骨架、读不出整块错误、读到了是正文 */
+  const renderDetailBody = () => {
+    if (contentLoading) {
+      return (
+        <div className="db-sk" aria-hidden="true">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="db-sk-block">
+              <span className="np-sk np-sk--pulse db-sk-40" />
+              <span className="np-sk np-sk--pulse db-sk-100" />
+              <span className="np-sk np-sk--pulse db-sk-75" />
+            </div>
+          ))}
+        </div>
+      )
+    }
+    if (contentError) {
+      return <StateView error="文件可能已被删除或移动" errorTitle="无法读取文件" onRetry={handleRetry} />
+    }
+    return <MarkdownRenderer className="np-read np-doc" content={displayContent} />
+  }
 
   return (
-    <PageShell
-      title="文档查阅"
-      subtitle="浏览项目中的 Markdown 文档"
-      divider
-      className="page-shell--no-padding"
-    >
-      <div className="db-layout">
-        {/* 左栏 */}
-        <div className="db-sidebar" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
-          <div className="db-topbar">
-            <input
-              className="db-search-input"
-              type="text"
-              placeholder="搜索文件名..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                className="db-search-clear"
-                onClick={() => setSearchQuery('')}
-              >
-                ✕
-              </button>
-            )}
-            <button className="db-add-btn" onClick={handleAddFolder}>
-              + 添加
-            </button>
+    <PageShell title="文档查阅" native className="db-page">
+      <div className="np-split" style={{ '--db-list-w': `${sidebarWidth}px` }}>
+        {/* 左栏：栏头搜索，栏体文件夹与目录树 / 搜索结果，栏底添加文件夹 */}
+        <div className="np-pane np-pane--list">
+          <div className="np-pane-hd">
+            <label className="np-sf">
+              <svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="5" cy="5" r="3.6" /><path d="M7.8 7.8 10.5 10.5" /></svg>
+              <input
+                type="text"
+                placeholder="搜索文件名..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button type="button" className="np-sf-clear" aria-label="清空搜索框" onClick={() => setSearchQuery('')}>×</button>
+              )}
+            </label>
           </div>
-
-          {/* 搜索模式 */}
-          {isSearchMode && (
-            <div className="db-list-area">
-              {searchResults.length === 0 ? (
-                <div className="db-search-empty">
-                  <div className="db-search-empty-icon">🔍</div>
-                  <div className="db-search-empty-text">无匹配文件</div>
-                  <div className="db-search-empty-hint">试试换个关键词</div>
-                </div>
-              ) : (
-                <>
-                  <div className="db-search-count">{searchResults.length} 个匹配文件</div>
-                  {searchResults.map((file) => (
-                    <button
-                      key={file.fullPath}
-                      className={`db-search-item ${selectedFile === file.fullPath ? 'active' : ''}`}
-                      onClick={() => handleFileClick(file.fullPath)}
-                    >
-                      <span className="db-file-icon">📄</span>
-                      <div className="db-search-item-info">
-                        <div className="db-file-name">{file.name}</div>
-                        <div className="db-search-item-path">{file.dir ? `${file.folderName} / ${file.dir}` : file.folderName}</div>
-                      </div>
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* 文件夹树模式 */}
-          {!isSearchMode && (
-            <div className="db-list-area">
-              {foldersLoading ? (
-                <div className="db-loading-state">
-                  <div className="db-spinner" />
-                  <div>加载中...</div>
-                </div>
-              ) : folders.length === 0 ? (
-                <div className="db-empty-sidebar">
-                  <div className="db-empty-sidebar-icon">📂</div>
-                  <div className="db-empty-sidebar-text">还没有添加文件夹</div>
-                  <div className="db-empty-sidebar-hint">添加文件夹后即可浏览其中的 Markdown 文档</div>
-                  <button className="db-empty-sidebar-btn" onClick={handleAddFolder}>+ 添加文件夹</button>
-                </div>
-              ) : (
-                folders.map(folder => (
-                  <div key={folder.path} className="db-folder-group">
-                    <button
-                      className={`db-folder-item ${expandedFolder === folder.path ? 'active' : ''} ${!folder.valid ? 'invalid' : ''}`}
-                      onClick={() => handleFolderClick(folder)}
-                    >
-                      <span className="db-folder-icon">
-                        {!folder.valid ? '⚠' : expandedFolder === folder.path ? '▼' : '▶'}
-                      </span>
-                      <span className="db-folder-name">{folder.name}</span>
-                      <span className={`db-folder-count ${!folder.valid ? 'invalid' : ''}`}>
-                        {folder.valid ? folder.fileCount : '!'}
-                      </span>
-                      <button
-                        className="db-folder-remove"
-                        onClick={(e) => handleRemoveFolder(folder.path, e)}
-                      >
-                        ×
-                      </button>
-                    </button>
-
-                    {expandedFolder === folder.path && folder.valid && (
-                      <div className="db-file-list">
-                        {filesLoading ? (
-                          <div className="db-files-loading">扫描中...</div>
-                        ) : files.length === 0 ? (
-                          <div className="db-files-empty">
-                            <div className="db-files-empty-icon">📭</div>
-                            <div>此文件夹下没有 .md 文件</div>
-                          </div>
-                        ) : (
-                          <FileTreeNode
-                            node={fileTree}
-                            depth={0}
-                            selectedFile={selectedFile}
-                            onFileClick={handleFileClick}
-                          />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
+          <div className="np-pane-body">
+            {isSearchMode ? renderSearch() : (
+              <StateView
+                loading={foldersLoading}
+                empty={folders.length === 0}
+                emptyMessage="还没有添加文件夹"
+                emptyHint="添加文件夹后即可浏览其中的 Markdown 文档"
+                emptyIcon={FOLDER_EMPTY_ICON}
+                emptyAction={<Button size="sm" variant="primary" onClick={handleAddFolder}>添加文件夹</Button>}
+              >
+                {renderFolders()}
+              </StateView>
+            )}
+          </div>
+          {showFooter && (
+            <div className="np-pane-ft">
+              <Button variant="ghost" className="np-btn-text" disabled={adding} onClick={handleAddFolder}>
+                {adding ? '添加中…' : '＋ 添加文件夹'}
+              </Button>
             </div>
           )}
         </div>
 
-        {/* 拖拽分隔线 */}
+        {/* 两栏之间的拖动条：盖在 0.5px 竖线上，看不见，只换光标 */}
         <div {...resizerProps} />
 
-        {/* 右栏 */}
-        <div className="db-content">
-          {!selectedFile && (
-            <div className="db-empty-content">
-              <div className="db-empty-content-icon">📖</div>
-              <div className="db-empty-content-text">选择一个文档查看内容</div>
-            </div>
-          )}
-
-          {selectedFile && (
-            <div className="db-content-header">
-              <span className="db-content-header-path">{selectedRelativePath}</span>
-              <span className="db-content-header-size">
-                {contentLoading ? '加载中...' : formatSize(fileSize)}
-              </span>
-            </div>
-          )}
-
-          {selectedFile && contentLoading && (
-            <div className="db-skeleton-area">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="db-skeleton-block">
-                  <div className="db-skeleton db-skeleton-short" />
-                  <div className="db-skeleton-gap" />
-                  <div className="db-skeleton db-skeleton-full" />
-                  <div className="db-skeleton db-skeleton-med" />
+        {/* 右栏：没选中一句话；选中后栏头 + 正文 */}
+        <div className="np-pane np-pane--detail">
+          {!selectedFile ? (
+            <div className="np-pane-empty">选择一个文档查看内容</div>
+          ) : (
+            <>
+              <div className="np-pane-hd">
+                <div className="ttl" title={selectedName}>{selectedName}</div>
+                <div className="meta">
+                  <span title={selectedWhere.full}>{selectedWhere.short}</span>
+                  {!contentLoading && !contentError && <span className="num">{formatSize(fileSize)}</span>}
                 </div>
-              ))}
-            </div>
-          )}
-
-          {selectedFile && !contentLoading && contentError && (
-            <div className="db-empty-content">
-              <div style={{ fontSize: '32px' }}>⚠️</div>
-              <div className="db-empty-content-text" style={{ color: 'var(--color-danger)' }}>无法读取文件</div>
-              <div className="db-empty-content-hint">文件可能已被删除或移动</div>
-              <button className="db-retry-btn" onClick={handleRetry}>重试</button>
-            </div>
-          )}
-
-          {selectedFile && !contentLoading && !contentError && (
-            <div className="db-md-area">
-              <MarkdownRenderer content={fileContent} />
-            </div>
+              </div>
+              <div className="np-pane-body">{renderDetailBody()}</div>
+            </>
           )}
         </div>
       </div>
-
     </PageShell>
   )
 }

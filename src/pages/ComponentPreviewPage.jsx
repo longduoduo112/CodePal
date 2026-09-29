@@ -167,6 +167,27 @@ export default function ComponentPreviewPage() {
               <div className="np-read"><p>长文 np-read：正文 13 / 20，<code>行内代码</code>。</p><pre><code>代码块不做语法高亮</code></pre></div>
             </div>
           </div>
+          <div className="cp-native__detail">
+            <div className="np-split">
+              <div className="np-pane np-pane--list">
+                <div className="np-pane-hd">
+                  <div className="np-sf"><svg viewBox="0 0 12 12"><circle cx="5" cy="5" r="3.6" /><path d="m7.8 7.8 2.6 2.6" /></svg><input placeholder="双栏 np-split" readOnly /></div>
+                </div>
+                <div className="np-pane-body">
+                  <div className="np-tr np-tr--root"><svg className="chev" viewBox="0 0 10 10"><path d="M2.5 4 5 6.5 7.5 4" /></svg><svg className="np-ti" viewBox="0 0 14 14"><path d="M1.5 3.5h4l1.2 1.3h5.8v6.7h-11z" /></svg><span className="nm">目录树根 np-tr--root</span><span className="cnt">3</span></div>
+                  <div className="np-tr" style={{ '--lv': 0 }}><svg className="chev" viewBox="0 0 10 10"><path d="M2.5 4 5 6.5 7.5 4" /></svg><svg className="np-ti" viewBox="0 0 14 14"><path d="M1.5 3.5h4l1.2 1.3h5.8v6.7h-11z" /></svg><span className="nm">子目录 np-tr</span><span className="cnt">2</span></div>
+                  <div className="np-tr on" style={{ '--lv': 1 }}><span className="sp" /><svg className="np-ti" viewBox="0 0 14 14"><path d="M3 1.5h5.2L11 4.3v8.2H3zM8 1.5v3h3" /></svg><span className="nm">选中的文件.md</span></div>
+                  <div className="np-lg">分组名 np-lg<span className="cnt">1</span></div>
+                  <div className="np-li on"><b>列表项 np-li</b><span className="d">一行描述</span></div>
+                </div>
+                <div className="np-pane-ft"><Button variant="ghost" className="np-btn-text">＋ 栏底动作 np-pane-ft</Button></div>
+              </div>
+              <div className="np-pane np-pane--detail">
+                <div className="np-pane-hd"><div className="ttl">右栏栏头 np-pane-hd</div><div className="meta"><span>文件夹 / … / 最后一级</span><span className="num">12.7 KB</span></div></div>
+                <div className="np-pane-body"><div className="np-read np-doc"><h1>文档阅读 np-doc</h1><blockquote><p>引用块</p></blockquote><table><thead><tr><th>标题</th><th>阅读</th></tr></thead><tbody><tr><td>表格不在数字中间断行</td><td>3645</td></tr></tbody></table></div></div>
+              </div>
+            </div>
+          </div>
           <div className="np-menu cp-native__menu">
             <button type="button" className="np-mitem"><span className="tx"><b>下拉菜单 np-menu</b></span><span className="ck">✓</span></button>
             <div className="np-msep" />
