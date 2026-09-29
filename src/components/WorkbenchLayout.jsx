@@ -73,7 +73,7 @@ function WorkbenchLayout({ children, activeModule, onModuleChange, appUpdate, on
     {
       label: '技能中心',
       items: [
-        { id: 'skills', label: 'Skills 管理', beta: true }
+        { id: 'skills', label: 'Skills 管理' }
       ]
     },
     {
