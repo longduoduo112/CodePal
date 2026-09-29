@@ -60,7 +60,7 @@ export function getInitialActiveModule() {
 export default function App() {
   // SkillManager 初始子页面：null=加载中, 'manage'=管理页, 'import'=导入页
   const [initialSkillManagerPage, setInitialSkillManagerPage] = useState(null)
-  // 活跃模块：从 localStorage 恢复上次页面；已下线模块统一回落到启动模式
+  // 活跃模块：从 localStorage 恢复上次页面；已下线模块统一回落到默认页（用量监测）
   const [activeModule, setActiveModule] = useState(getInitialActiveModule)
   // Usage 页面是否已访问（已访问后保持挂载，支持后台继续汇总重周期）
   const [hasVisitedUsage, setHasVisitedUsage] = useState(false)

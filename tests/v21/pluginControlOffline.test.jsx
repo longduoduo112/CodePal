@@ -1,14 +1,14 @@
 /**
- * Plugins 管理下线回归守护（plugin-control-offline-2）
+ * Plugins 管理下线回归守护（plugin-control-offline-3）
  *
- * 本任务把「Plugins 管理 / Plugin 控制中心」从 CodePal 断线下线：
- * 接线与引用全部清掉，模块文件与旧测试暂留（插件不支持任务内删文件，
- * 照「文档查阅」先例由合并后的收尾提交物理删除）。
+ * 「Plugins 管理 / Plugin 控制中心」已从 CodePal 下线：先由任务断掉全部接线与引用，
+ * 合并后的收尾提交再把模块文件与旧测试物理删除（插件不支持任务内删文件，
+ * 照「文档查阅」先例）。这组测试防止它们被接回来。
  *
  * 负责：
  * - TC-001 侧栏、模块白名单与图标不再有插件管理
  * - TC-002 主进程与 preload 断线
- * - TC-003 生产入口不再引用暂留模块（暂留文件仍在）
+ * - TC-003 生产入口不再引用插件模块，模块文件已删除
  * - TC-004 测试与文档无悬空引用、接线已加新测试
  * - TC-005 写网关测试重做且锁语义保留
  * - TC-006 Skill 链路、共享网关与导航保持现状（guard）
@@ -28,7 +28,7 @@ const read = (rel) => readFileSync(path.join(root, rel), 'utf-8')
 const SELF = path.resolve(__dirname, 'pluginControlOffline.test.jsx')
 const DEAD_CODE_GUARD = path.join(root, 'tests', 'safety', 'deadCode.test.js')
 
-/** 下线十个标记：只允许出现在暂留文件自身与 deadCode 防复活清单里 */
+/** 下线十个标记：只允许出现在 deadCode 防复活清单里 */
 const PLUGIN_TOKENS = [
   'PluginControlPage',
   'usePluginControl',
@@ -42,8 +42,8 @@ const PLUGIN_TOKENS = [
   'Plugin 控制中心'
 ]
 
-/** 暂留的模块文件（本任务只断引用，收尾提交物理删除） */
-const PARKED_MODULE_FILES = [
+/** 已删除的模块文件 */
+const REMOVED_MODULE_FILES = [
   'src/pages/PluginControlPage.jsx',
   'src/hooks/usePluginControl.js',
   'src/styles/plugin-control.css',
@@ -51,8 +51,8 @@ const PARKED_MODULE_FILES = [
   'electron/handlers/registerPluginControlHandlers.js'
 ]
 
-/** 暂留的旧测试文件（随收尾提交一起退） */
-const PARKED_TEST_FILES = [
+/** 已删除的旧测试文件 */
+const REMOVED_TEST_FILES = [
   'tests/v21/pluginControlService.test.js',
   'tests/v21/PluginControlPage.test.jsx',
   'tests/v21/pluginExplainability.test.jsx'
@@ -129,26 +129,21 @@ describe('Plugins 管理下线', () => {
     expect(leftover, `MAIN_PRELOAD_CUT preload 仍含 ${leftover.join(', ')}`).toEqual([])
   })
 
-  it('TC-003 生产入口不再引用暂留模块', () => {
-    const skip = new Set(PARKED_MODULE_FILES.map((rel) => path.resolve(root, rel)))
+  it('TC-003 生产入口不再引用插件模块，模块文件已删除', () => {
     const files = [
       ...collectSourceFiles(path.join(root, 'src')),
       ...collectSourceFiles(path.join(root, 'electron'))
-    ].filter((file) => !skip.has(path.resolve(file)))
+    ]
 
     const hits = scanTokens(files)
     expect(hits, `PARKED_NOT_REFERENCED 生产入口仍有引用 -> ${JSON.stringify(hits)}`).toEqual([])
 
-    const missing = PARKED_MODULE_FILES.filter((rel) => !existsSync(path.join(root, rel)))
-    expect(missing, `PARKED_NOT_REFERENCED 暂留文件缺失: ${missing.join(', ')}`).toEqual([])
+    const still = [...REMOVED_MODULE_FILES, ...REMOVED_TEST_FILES].filter((rel) => existsSync(path.join(root, rel)))
+    expect(still, `PARKED_NOT_REFERENCED 下线文件仍在: ${still.join(', ')}`).toEqual([])
   })
 
   it('TC-004 测试与文档无悬空引用、接线已加新测试', () => {
-    const skip = new Set([
-      SELF,
-      DEAD_CODE_GUARD,
-      ...PARKED_TEST_FILES.map((rel) => path.resolve(root, rel))
-    ])
+    const skip = new Set([SELF, DEAD_CODE_GUARD])
     const files = [
       ...collectSourceFiles(path.join(root, 'tests'), new Set(['report'])),
       path.join(root, 'README.md')

@@ -28,7 +28,7 @@ const isMac = () => typeof navigator !== 'undefined' && /Macintosh|Mac OS X/.tes
  * 工作台布局组件
  * @param {Object} props
  * @param {React.ReactNode} props.children - 内容区域要渲染的子元素
- * @param {'skills'|'usage'|'claude-usage'|'api'|'project-init'|'permission'|'network'|'session-status'|'sessions'|'doc-browser'} props.activeModule - 当前激活的模块
+ * @param {'skills'|'usage'|'claude-usage'|'project-init'|'permission'|'models'|'network'|'session-status'|'sessions'|'doc-browser'} props.activeModule - 当前激活的模块
  * @param {function} props.onModuleChange - 模块切换回调函数
  * @param {object} [props.appUpdate] - 应用更新状态（hasUpdate / latestVersion / releaseNotes / checked / error）
  * @param {function} [props.onDownloadUpdate] - 「下载新版」：打开发布页

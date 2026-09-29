@@ -45,6 +45,15 @@ const REMOVED_FILES = [
   'docs/VPN_STABILITY_DEMO.md',
   'docs/prd-v1.3.0-auto-update.md',
   'docs/research/V1.5.0-codex-impl-details.md',
+  // Plugins 管理下线（2026-09-29，specs/plugin-control-offline-3）
+  'src/pages/PluginControlPage.jsx',
+  'src/hooks/usePluginControl.js',
+  'src/styles/plugin-control.css',
+  'electron/services/pluginControlService.js',
+  'electron/handlers/registerPluginControlHandlers.js',
+  'tests/v21/pluginControlService.test.js',
+  'tests/v21/PluginControlPage.test.jsx',
+  'tests/v21/pluginExplainability.test.jsx',
 ]
 
 // 注：getModelConfig / setModelConfig / resetModelConfig / resetPermissionMode / restorePermissionMode 当前也没人调，
@@ -52,6 +61,7 @@ const REMOVED_FILES = [
 const UNUSED_PRELOAD_APIS = [
   'scanPresetTools', 'checkPathExists', 'scanDshUsage', 'aggregateUsageRange', 'aggregateUsagePeriod',
   'getUsageStatisticsStatus', 'deploySkillToTool', 'getEarliestLogDate', 'getModelRegistry', 'checkAppUpdate',
+  'getPluginControlSnapshot', 'executePluginCommand',
 ]
 
 describe('B2-2 死代码清理', () => {
@@ -108,7 +118,7 @@ describe('README 与代码一致', () => {
 })
 
 // 2026-09-25 发版前静态审计：页面调不到的主进程通道一并清掉（下线要连 IPC 一起清干净）
-const DEAD_MAIN_CHANNELS = ['app-update:check', 'scan-preset-tools', 'check-path-exists', 'model-registry:get', 'skill-control:deploy', 'usage-statistics:status']
+const DEAD_MAIN_CHANNELS = ['app-update:check', 'scan-preset-tools', 'check-path-exists', 'model-registry:get', 'skill-control:deploy', 'usage-statistics:status', 'plugin-control:get-snapshot', 'plugin-control:execute']
 
 describe('主进程没有页面调不到的通道', () => {
   it('D-7 主进程不再注册无人调用的通道；preload 不再监听没人发的 plan-resume', () => {

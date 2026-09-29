@@ -2,7 +2,7 @@
  * Codex 配置写入网关 + 足迹清单（架构优化 B2-6，roadmap 路线 5）
  *
  * 负责：
- * - Skills、会话状态对 ~/.codex/config.toml 的修改都进同一把锁（Codex 配置负责人）
+ * - Skills、会话状态对 ~/.codex/config.toml 的修改都进同一把锁（Codex 配置负责人）；提交前复验，外部改动 → 冲突
  * - 会话状态：配置坏了拒绝写；只留一份滚动备份，不再每次攒一个带时间戳的 .bak
  * - 足迹清单：CodePal 装进别的工具的东西（会话状态钩子等）装时登记、卸时注销
  *
@@ -64,6 +64,21 @@ describe('B2-6 所有 Codex 配置写入进同一把锁', () => {
     const text = await readFile(configPath, 'utf8')
     expect(text).toMatch(/path = ".*\/a"\nenabled = false/)
     expect(text).toMatch(/\[\[hooks\./)
+  })
+
+  it('G-2 Skill 开关提交前被外部改动 → 冲突，保留外部版本', async () => {
+    const home = await tempHome()
+    const skill = path.join(home, '.agents', 'skills', 'a')
+    await mkdir(skill, { recursive: true })
+    await writeFile(path.join(skill, 'SKILL.md'), '# a\n')
+    const configPath = path.join(home, '.codex', 'config.toml')
+    await writeFile(configPath, `[[skills.config]]\npath = "${skill}"\nenabled = true\n`)
+    const external = 'model = "external"\n'
+    await expect(applyCodexCommand(
+      { homeDir: home, skillName: 'a', action: 'disable', source: { absolutePath: skill } },
+      { beforeConfigCommit: () => writeFile(configPath, external) }
+    )).rejects.toMatchObject({ code: 'CODEX_CONFIG_CONFLICT' })
+    expect(await readFile(configPath, 'utf8')).toBe(external)
   })
 })
 
