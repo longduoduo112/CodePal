@@ -2,7 +2,7 @@
 
 > AI 编程工具负责写代码，CodePal 负责写代码之外的一切 —— 用量与订阅、会话状态、对话回顾、新项目初始化与 Skills / Plugins 跨工具管理。专为 **Claude Code / Codex / Cursor / Trae** 用户打造。
 
-[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/yunshu0909/CodePal/releases) [![version](https://img.shields.io/badge/version-v2.1.1-blue)](https://github.com/yunshu0909/CodePal/releases/latest) [![license](https://img.shields.io/badge/license-ISC-green)](#license)
+[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/yunshu0909/CodePal/releases) [![version](https://img.shields.io/badge/version-v2.1.2-blue)](https://github.com/yunshu0909/CodePal/releases/latest) [![license](https://img.shields.io/badge/license-ISC-green)](#license)
 
 ---
 
@@ -185,7 +185,14 @@ skill-manager/
 
 完整版本信息见 [GitHub Releases](https://github.com/yunshu0909/CodePal/releases)。
 
-**最新版本：[v2.1.1](https://github.com/yunshu0909/CodePal/releases/tag/v2.1.1)**
+**最新版本：[v2.1.2](https://github.com/yunshu0909/CodePal/releases/tag/v2.1.2)**
+
+- 📄 文档查阅换成 macOS 原生风格：左栏像访达边栏的目录树，正文排版更好读（标题分层、表格数字不再断行、开头元数据和注释不再显示）
+- 🔌 模型接入新增 MiMo、智谱、Kimi 的 API 与 Coding Plan 渠道，每家单独填 Key、测一下、开终端
+- 📊 用量监测与对话回顾把 CodePal 在后台调用别家模型的记录也算进来（对话回顾里默认隐藏，勾选「自动调用」可见）
+- 🔧 修复：打开 CodePal 时不再重写内容没变的 `~/.claude/settings.json`，也不再多存备份
+
+**v2.1.1**
 
 - 🔧 修复：安装版里打开「会话状态」报「未找到内置会话状态模板」（v2.0.0 起就有）
 
