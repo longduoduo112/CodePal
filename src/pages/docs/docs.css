@@ -37,9 +37,9 @@
   margin-top: 2px;
 }
 
-/* 树里的一句话和第一级文件名对齐（8 + 箭头 10 + 间距 4 ≈ 24） */
+/* 对齐直接子项名称：基础 8 + 层级 14 + 箭头 10 + 间距 4 + 图标 14 + 间距 4 */
 .db-page .np-empty.db-tree-note {
-  padding: 4px 8px 4px 24px;
+  padding: 4px 8px 4px 54px;
 }
 
 /* 搜索无结果：一句话 + 「清除搜索」同一行 */

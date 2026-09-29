@@ -136,7 +136,7 @@ function TreeIcon({ kind }) {
  * @param {object} props
  * @param {{files: Array, dirs: Map}} props.node - 这一层的节点
  * @param {string} props.path - 这一层相对文件夹根的路径（根下为 ''）
- * @param {number} props.level - 缩进级别（文件夹根下为 0）
+ * @param {number} props.level - 缩进级别（根为 0，直接子项为 1）
  * @param {Set<string>} props.expandedDirs - 展开着的子目录路径
  * @param {(dirPath: string) => void} props.onToggleDir - 展开 / 收起子目录
  * @param {string|null} props.selectedFile - 当前选中文件的完整路径
@@ -504,7 +504,7 @@ export default function DocBrowserPage() {
                 <FileTreeLevel
                   node={fileTree}
                   path=""
-                  level={0}
+                  level={1}
                   expandedDirs={expandedDirs}
                   onToggleDir={handleToggleDir}
                   selectedFile={selectedFile}

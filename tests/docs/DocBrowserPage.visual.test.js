@@ -177,6 +177,22 @@ describe.skipIf(SKIP)('文档查阅真实渲染', () => {
     await win.getByText('指南', { exact: true }).click()
     await win.getByText('readme.md', { exact: true }).click()
     await win.locator('.np-doc h1').waitFor()
+    // 按真实名称坐标验证父子关系，避免只断言实现传入的层级参数。
+    const treeGeometry = await win.locator('.np-tr').evaluateAll((rows) => rows.map((row) => ({
+      name: row.querySelector('.nm').textContent,
+      nameX: row.querySelector('.nm').getBoundingClientRect().left,
+      countRight: row.querySelector('.cnt')?.getBoundingClientRect().right,
+    })))
+    const rootGeometry = treeGeometry.find((row) => row.name === '样例文档')
+    const dirGeometry = treeGeometry.find((row) => row.name === '指南')
+    const fileGeometry = treeGeometry.find((row) => row.name === 'readme.md')
+    const grandchildGeometry = treeGeometry.find((row) => row.name === '上手.md')
+    await shot('hierarchy')
+    fs.writeFileSync(path.join(SHOTS, 'hierarchy.json'), JSON.stringify(treeGeometry, null, 2))
+    expect(dirGeometry.nameX - rootGeometry.nameX, 'TREE_ROOT_DEPTH 根与直接子项').toBe(14)
+    expect(grandchildGeometry.nameX - dirGeometry.nameX, 'TREE_ROOT_DEPTH 子与孙项').toBe(14)
+    expect(fileGeometry.nameX, 'TREE_ROOT_DEPTH 同级文件与目录').toBe(dirGeometry.nameX)
+    expect(dirGeometry.countRight, 'TREE_ROOT_DEPTH 计数右对齐').toBe(rootGeometry.countRight)
     const tr = await measure('.np-tr:not(.np-tr--root)')
     expect(Math.round(tr.h), 'VISUAL_CHECK 树行高 24').toBe(24)
     expect(tr.fontSize, 'VISUAL_CHECK 树行字 12.5').toBe('12.5px')
@@ -234,8 +250,24 @@ describe.skipIf(SKIP)('文档查阅真实渲染', () => {
     await win.getByText('readme.md', { exact: true }).click()
     await win.locator('.np-doc h1').waitFor()
     await setSize(720, 500)
+    const paneOverflow = await win.locator('.np-pane--list .np-pane-body').evaluate((el) => el.scrollWidth - el.clientWidth)
+    expect(paneOverflow, 'TREE_ROOT_DEPTH 最小窗口样例不横向溢出').toBe(0)
     await shot('W5')
     await setSize(800, 600)
+
+    // 清空本测试创建的两个剩余文件，经真实 IPC 重读，检查提示文字起点。
+    fs.unlinkSync(path.join(docsDir, 'readme.md'))
+    fs.unlinkSync(path.join(docsDir, '指南', '上手.md'))
+    await reload()
+    await win.locator('.np-tr--root').first().click()
+    await win.getByText('此文件夹下没有 .md 文件', { exact: true }).waitFor()
+    const noteX = await win.locator('.db-tree-note').evaluate((el) => {
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      return range.getBoundingClientRect().left
+    })
+    expect(noteX, 'TREE_ROOT_DEPTH 空目录提示与直接子项名称对齐').toBe(fileGeometry.nameX)
+    await shot('W9')
 
     // W14 路径失效：把样例文件夹挪走再进页面
     fs.renameSync(docsDir, `${docsDir}-挪走`)
