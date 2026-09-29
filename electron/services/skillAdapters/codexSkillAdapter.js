@@ -7,7 +7,7 @@
  * - 写完再读一次核对：不一致就写回原状态并再核对；写回核对通过报 NOT_EFFECTIVE，否则报 STATE_UNKNOWN
  * - 旧版 CodePal 用文件夹路径写的「关」Codex 不认：打开 Skills 页时按原意补关（先备份，全成功才算，失败恢复）
  * - 没装 Codex / 接口起不来时不再自己改 config.toml 文字，Codex 标为不可用
- * - 写入（含补关的备份与恢复）都在 Codex 配置负责人的同一把锁里，和 Plugins 开关、会话状态等写入串行
+ * - 写入（含补关的备份与恢复）都在 Codex 配置负责人的同一把锁里，和会话状态等写入串行
  *
  * @module electron/services/skillAdapters/codexSkillAdapter
  */
@@ -73,7 +73,7 @@ function findListed(listed, skillMdPath) {
   return listed.find((skill) => skill.path === target)
 }
 
-/** 发现 Codex 独立 Skill；开关以官方接口为准。Plugin 子 Skill 不在这里。 */
+/** 发现 Codex 独立 Skill；开关以官方接口为准。Plugin 子 Skill 由各工具官方管理，不进 Skill 控制中心。 */
 async function discoverCodexSkills({ homeDir }, deps = {}) {
   const officialRoot = path.join(homeDir, '.agents', 'skills')
   const legacyRoot = path.join(homeDir, '.codex', 'skills')
@@ -100,6 +100,10 @@ async function discoverCodexSkills({ homeDir }, deps = {}) {
     const code = error?.code === 'CODEX_NOT_FOUND' ? 'CODEX_NOT_FOUND' : 'CODEX_API_FAILED'
     errors.push({ origin: code === 'CODEX_NOT_FOUND' ? 'tool' : 'config', code })
   }
+  // 插件带的 Skill 不进列表；只记下「哪个插件带了同名的」，给详情的隶属插件一行用（名字形如 插件:Skill，pluginId 形如 插件@市场）
+  const pluginSkills = (listed || [])
+    .filter((skill) => skill.pluginId && skill.enabled !== false)
+    .map((skill) => ({ name: String(skill.name).split(':').pop(), plugin: String(skill.pluginId).split('@')[0] }))
   if (listed) {
     for (const source of sources) {
       const hit = findListed(listed, skillMdOf(source.absolutePath))
@@ -107,7 +111,7 @@ async function discoverCodexSkills({ homeDir }, deps = {}) {
       source.configEnabled = hit ? hit.enabled : true
     }
   }
-  return { toolId: 'codex', sources, errors }
+  return { toolId: 'codex', sources, errors, pluginSkills }
 }
 
 /**

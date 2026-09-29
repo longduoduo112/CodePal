@@ -52,32 +52,6 @@ function useRecords(skillName, refreshToken) {
   return records
 }
 
-/** 已启用插件里的 Skill 名 → 插件名（只用来写「隶属插件」，读不到就不写） */
-function usePluginSiblings() {
-  const [siblings, setSiblings] = useState(() => new Map())
-  useEffect(() => {
-    const api = typeof window !== 'undefined' ? window.electronAPI : null
-    if (!api?.getPluginControlSnapshot) return undefined
-    let cancelled = false
-    api.getPluginControlSnapshot({})
-      .then((result) => {
-        if (cancelled || !result?.success) return
-        const map = new Map()
-        for (const plugin of result.data?.plugins || []) {
-          if (plugin.installed === false || plugin.enabled === false) continue
-          for (const child of plugin.childSkills || []) {
-            const names = map.get(child.name) || []
-            if (!names.includes(plugin.name)) map.set(child.name, [...names, plugin.name])
-          }
-        }
-        setSiblings(map)
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [])
-  return siblings
-}
-
 /**
  * @param {object} props
  * @param {number} [props.refreshSignal=0] - 外部触发的重读
@@ -111,8 +85,6 @@ export default function SkillsPage({ refreshSignal = 0 }) {
   const groups = useMemo(() => buildGroups(skills, { usageMap, usageFailed, query: query.trim() }), [skills, usageMap, usageFailed, query])
   const selectedSkill = selectedId === OVERVIEW_ID ? null : skills.find((skill) => skill.name === selectedId) || null
   const records = useRecords(selectedSkill && (selectedSkill.managed || isExternal(selectedSkill)) ? selectedSkill.name : null, usageToken)
-  const siblings = usePluginSiblings()
-
   // 选中的 Skill 没了（删了）：回到总览
   useEffect(() => {
     if (snapshot && selectedId !== OVERVIEW_ID && !skills.some((skill) => skill.name === selectedId)) setSelectedId(OVERVIEW_ID)
@@ -232,7 +204,7 @@ export default function SkillsPage({ refreshSignal = 0 }) {
         usageFailed={usageFailed}
         onRetryUsage={() => setUsageToken((token) => token + 1)}
         records={records}
-        pluginNames={selectedSkill.managed ? siblings.get(selectedSkill.name) || [] : []}
+        pluginNames={selectedSkill.managed ? selectedSkill.plugins || [] : []}
         pendingKeys={pendingKeys}
         onToggle={(toolId, enabled) => handleToggle(selectedSkill, toolId, enabled)}
         onAdopt={() => handleAdopt(selectedSkill)}

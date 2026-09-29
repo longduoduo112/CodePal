@@ -70,3 +70,24 @@ describe('审核修复第 3 轮', () => {
     server.close()
   })
 })
+
+describe('隶属插件的来源（改读 Codex 官方接口）', () => {
+  it('PLUGIN_OWNER_FROM_CODEX Codex 官方接口里带 pluginId 的同名 Skill：快照给出插件名，插件 Skill 本身不进列表', async () => {
+    const skillDir = path.join(homeDir, '.agents', 'skills', 'page-solution-design')
+    await fs.mkdir(skillDir, { recursive: true })
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), '---\nname: page-solution-design\ndescription: x\n---\n')
+    const skillMd = await fs.realpath(path.join(skillDir, 'SKILL.md'))
+    const api = {
+      list: async () => [
+        { name: 'page-solution-design', path: skillMd, enabled: true, pluginId: null },
+        { name: 'dev-workflow:page-solution-design', path: '/plugins/dev-workflow/skills/page-solution-design/SKILL.md', enabled: true, pluginId: 'dev-workflow@local' },
+        { name: 'other:off-plugin', path: '/plugins/other/skills/off-plugin/SKILL.md', enabled: false, pluginId: 'other@local' },
+      ],
+      write: async () => ({}),
+    }
+    const snap = await service.getSkillControlSnapshot({ repoPath, homeDir }, { codexSkillApi: api, skipPluginDiscovery: true })
+    expect(snap.skills.find((skill) => skill.name === 'page-solution-design').plugins).toEqual(['dev-workflow'])
+    expect(snap.skills.some((skill) => skill.name.includes(':'))).toBe(false)
+    expect(snap.skills.some((skill) => skill.name === 'off-plugin')).toBe(false)
+  })
+})

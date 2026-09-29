@@ -45,7 +45,7 @@ export default function SkillDetailsModal({ skill, onClose }) {
   if (pluginOrigin) {
     effectiveText = `来自 ${toolName(pluginOrigin.toolId)} Plugin ${pluginOrigin.pluginName || pluginOrigin.pluginId || '未知 Plugin'}。仅在父 Plugin 已安装且启用时，新任务才会加载它。`
     handlingTitle = '随 Plugin 启用'
-    handlingText = '这是只读 Plugin Skill。请到 Plugin 控制中心启停父 Plugin；这里不提供独立开关。'
+    handlingText = '这是只读 Plugin Skill，这里不提供独立开关。'
   } else if (systemOrigin) {
     effectiveText = `由 ${toolName(systemOrigin.toolId)} 随应用提供，新任务会按系统规则加载。`
     handlingTitle = '系统提供'

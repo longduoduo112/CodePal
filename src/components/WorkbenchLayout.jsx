@@ -28,7 +28,7 @@ const isMac = () => typeof navigator !== 'undefined' && /Macintosh|Mac OS X/.tes
  * 工作台布局组件
  * @param {Object} props
  * @param {React.ReactNode} props.children - 内容区域要渲染的子元素
- * @param {'skills'|'usage'|'claude-usage'|'api'|'project-init'|'permission'|'network'|'session-status'|'sessions'|'doc-browser'} props.activeModule - 当前激活的模块
+ * @param {'skills'|'usage'|'claude-usage'|'project-init'|'permission'|'models'|'network'|'session-status'|'sessions'|'doc-browser'} props.activeModule - 当前激活的模块
  * @param {function} props.onModuleChange - 模块切换回调函数
  * @param {object} [props.appUpdate] - 应用更新状态（hasUpdate / latestVersion / releaseNotes / checked / error）
  * @param {function} [props.onDownloadUpdate] - 「下载新版」：打开发布页
@@ -48,7 +48,7 @@ function WorkbenchLayout({ children, activeModule, onModuleChange, appUpdate, on
    * 按用途分四组（2026-09-19 用户定顺序），新功能按每组的定义归组：
    * - 用量账单：花了多少、值不值（token 用量、订阅费和回本）
    * - 项目开发：写代码这件事本身（开项目、回看过程、查资料）
-   * - 技能中心：给 AI 工具装的能力（Skills、Plugins）
+   * - 技能中心：给 AI 工具装的能力（Skills）
    * - 环境配置：让工具跑得起来、跑得顺的环境（Claude Code 设置、网络、以后的消息同步）
    * 图标见 sidebarIcons.js（按模块 ID 取）
    * @type {Array<{label: string, items: Array<{id: string, label: string, beta?: boolean}>}>}
@@ -73,8 +73,7 @@ function WorkbenchLayout({ children, activeModule, onModuleChange, appUpdate, on
     {
       label: '技能中心',
       items: [
-        { id: 'skills', label: 'Skills 管理', beta: true },
-        { id: 'plugins', label: 'Plugins 管理', beta: true }
+        { id: 'skills', label: 'Skills 管理', beta: true }
       ]
     },
     {

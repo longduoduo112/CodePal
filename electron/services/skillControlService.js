@@ -336,6 +336,7 @@ async function getSkillControlSnapshot(params = {}, overrides = {}) {
         toolId,
         sources: (result?.sources || []).filter((source) => source.origin !== 'plugin'),
         errors: (result?.errors || []).filter((error) => error.origin !== 'plugin'),
+        pluginSkills: Array.isArray(result?.pluginSkills) ? result.pluginSkills : [],
       }]
     } catch (error) {
       return [toolId, { toolId, sources: [], errors: [{ origin: 'tool', code: mapFsError(error) }] }]
@@ -406,6 +407,11 @@ async function getSkillControlSnapshot(params = {}, overrides = {}) {
       }
     }
     const describedOrigin = origins.find((origin) => origin.description)
+    // 带同名 Skill 的插件（只作说明，插件本身不计入）
+    const plugins = [...new Set(Object.values(discovery)
+      .flatMap((item) => item.pluginSkills || [])
+      .filter((item) => item.name === name)
+      .map((item) => item.plugin))]
     return {
       name,
       displayName: managed?.displayName || describedOrigin?.displayName || name,
@@ -413,6 +419,7 @@ async function getSkillControlSnapshot(params = {}, overrides = {}) {
       managed: Boolean(managed),
       origins,
       tools: toolStates,
+      plugins,
     }
   })
 

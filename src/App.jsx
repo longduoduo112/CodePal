@@ -19,7 +19,6 @@ import UsageMonitorModule from './components/UsageMonitorModule'
 import PlanManagementPage from './pages/PlanManagementPage'
 import ProjectInitPage from './pages/ProjectInitPage'
 import PermissionModePage from './pages/PermissionModePage'
-import PluginControlPage from './pages/PluginControlPage'
 import NetworkDiagnosticsPage from './pages/NetworkDiagnosticsPage'
 import ModelsPage from './features/models/ModelsPage'
 import SessionBrowserPage from './pages/SessionBrowserPage'
@@ -33,7 +32,7 @@ import useMainNavigation from './hooks/useMainNavigation'
 const AUTO_INCREMENTAL_REFRESH_INTERVAL_MS = 5 * 60 * 1000
 // 首次打开、或记住的页面已下线时进侧栏第一项（2026-09-19 用户定）
 const DEFAULT_ACTIVE_MODULE = 'usage'
-export const VALID_ACTIVE_MODULES = new Set(['skills', 'plugins', 'usage', 'claude-usage', 'project-init', 'permission', 'models', 'network', 'session-status', 'sessions', 'doc-browser'])
+export const VALID_ACTIVE_MODULES = new Set(['skills', 'usage', 'claude-usage', 'project-init', 'permission', 'models', 'network', 'session-status', 'sessions', 'doc-browser'])
 const INITIAL_APP_UPDATE_STATE = Object.freeze({
   checked: false,
   checking: false,
@@ -48,9 +47,9 @@ const INITIAL_APP_UPDATE_STATE = Object.freeze({
 
 /**
  * 读取上次访问的模块，并过滤已下线模块
- * @returns {'skills'|'plugins'|'usage'|'claude-usage'|'project-init'|'permission'|'models'|'network'|'session-status'|'sessions'|'doc-browser'}
+ * @returns {'skills'|'usage'|'claude-usage'|'project-init'|'permission'|'models'|'network'|'session-status'|'sessions'|'doc-browser'}
  */
-function getInitialActiveModule() {
+export function getInitialActiveModule() {
   // 原「状态灯」已改名为「会话状态」（#41），记住的旧模块直接带过去
   const storedModule = localStorage.getItem('codepal-active-module') === 'k28-status-light'
     ? 'session-status'
@@ -61,7 +60,7 @@ function getInitialActiveModule() {
 export default function App() {
   // SkillManager 初始子页面：null=加载中, 'manage'=管理页, 'import'=导入页
   const [initialSkillManagerPage, setInitialSkillManagerPage] = useState(null)
-  // 活跃模块：从 localStorage 恢复上次页面；已下线模块统一回落到启动模式
+  // 活跃模块：从 localStorage 恢复上次页面；已下线模块统一回落到默认页（用量监测）
   const [activeModule, setActiveModule] = useState(getInitialActiveModule)
   // Usage 页面是否已访问（已访问后保持挂载，支持后台继续汇总重周期）
   const [hasVisitedUsage, setHasVisitedUsage] = useState(false)
@@ -303,7 +302,6 @@ export default function App() {
                 refreshSignal={skillsRefreshSignal}
               />
         )}
-        {activeModule === 'plugins' && <PluginControlPage />}
         {(activeModule === 'usage' || hasVisitedUsage) && (
           <div className="keep-alive-wrapper" hidden={activeModule !== 'usage'}>
             <UsageMonitorModule isActive={activeModule === 'usage'} />

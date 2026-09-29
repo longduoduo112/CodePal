@@ -63,10 +63,14 @@ function managed(name, description, { claude = none(), codex = none(), locations
 
 function baseSkills() {
   return [
-    managed('page-solution-design', '和用户一起敲定一个前端页面的整页方案', {
-      claude: on(), codex: off(),
-      locations: [loc('central', `${CENTRAL}/page-solution-design`), loc('claude-code', '~/.claude/skills/page-solution-design')],
-    }),
+    {
+      ...managed('page-solution-design', '和用户一起敲定一个前端页面的整页方案', {
+        claude: on(), codex: off(),
+        locations: [loc('central', `${CENTRAL}/page-solution-design`), loc('claude-code', '~/.claude/skills/page-solution-design')],
+      }),
+      // 快照里带同名 Skill 的插件（主进程从 Codex 官方接口的 pluginId 读出）
+      plugins: ['dev-workflow'],
+    },
     managed('viral-title', 'Generate high-potential viral title candidates', { claude: on(), codex: on() }),
     managed('readable-output', '产出给人读的 HTML 长文', { claude: on(), codex: on() }),
     managed('memory-init', '在当前目录下初始化记忆系统', { claude: on(), codex: on() }),
@@ -147,14 +151,13 @@ const RECORDS = [
 
 let api
 
-function makeApi({ snap = snapshot(), usage = USAGE, execute, plugins } = {}) {
+function makeApi({ snap = snapshot(), usage = USAGE, execute } = {}) {
   return {
     getSkillControlSnapshot: vi.fn(async () => ({ success: true, data: snap, error: null })),
     executeSkillCommand: vi.fn(execute || (async () => ({ success: true, data: {}, snapshot: snap, error: null }))),
     adoptExternalSkill: vi.fn(async () => ({ success: true })),
     aggregateSkillUsage: vi.fn(async () => ({ success: true, data: { skills: usage } })),
     listSkillRunSamples: vi.fn(async ({ skillName }) => ({ success: true, data: { records: RECORDS.filter((record) => record.skillName === skillName) } })),
-    getPluginControlSnapshot: vi.fn(async () => ({ success: true, data: plugins || { plugins: [{ id: 'dev-workflow', name: 'dev-workflow', installed: true, enabled: true, childSkills: [{ name: 'page-solution-design' }] }] } })),
     getTags: vi.fn(async () => []),
   }
 }
@@ -210,7 +213,7 @@ describe('外壳与列表', () => {
     const { container } = await renderPage()
     expect(container.querySelector('.page-shell--native')).not.toBeNull()
     expect(screen.getByRole('heading', { level: 1, name: 'Skills' })).toBeTruthy()
-    for (const gone of ['管理标签', '配置', '这里只显示独立 Skill；Plugin 所带能力请到 Plugin 控制中心查看', '资产库\n81']) {
+    for (const gone of ['管理标签', '配置', '这里只显示独立 Skill', '资产库\n81']) {
       expect(screen.queryByText(gone)).toBeNull()
     }
     expect(container.querySelector('.skill-control-summary, .skill-control-views, .tag-filter-chips')).toBeNull()
