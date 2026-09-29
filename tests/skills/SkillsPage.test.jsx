@@ -688,14 +688,11 @@ describe('状态', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
     expect(pkg.scripts['test:skills']).toMatch(/tests\/skills/)
     expect(pkg.scripts.test).toContain('npm run test:skills')
-    // 三个旧测试退役成占位：整份跳过、写明由谁接替；脚本仍指着它们（测试接线自检要求），合并后单独删
+    // 三个旧测试已在合并后删除：文件不在、脚本也不再指着它们
     const all = Object.values(pkg.scripts).join('\n')
     for (const retired of ['tests/v2/ManagePage.skillControl.test.jsx', 'tests/v21/skillExplainability.test.jsx', 'tests/safety/codexSkillConfig.test.js']) {
-      const text = fs.readFileSync(path.join(root, retired), 'utf8')
-      expect(text).toContain('已退役')
-      expect(text).toContain('describe.skip')
-      expect(text).not.toMatch(/\bit\(\s*['"][^'"]+['"],\s*async/)
-      expect(all).toContain(retired)
+      expect(fs.existsSync(path.join(root, retired))).toBe(false)
+      expect(all).not.toContain(retired)
     }
   })
 })
