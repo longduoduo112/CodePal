@@ -2,7 +2,7 @@
 
 > AI 编程工具负责写代码，CodePal 负责写代码之外的一切 —— 用量与订阅、会话状态、对话回顾、Skills 管理、用别家模型开 Claude Code。专为 **Claude Code / Codex** 用户打造。
 
-[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/yunshu0909/CodePal/releases) [![version](https://img.shields.io/badge/version-v2.1.3-local.1-blue)](https://github.com/yunshu0909/CodePal/releases/latest) [![license](https://img.shields.io/badge/license-ISC-green)](#license)
+[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/yunshu0909/CodePal/releases) [![version](https://img.shields.io/badge/version-v2.1.3-blue)](https://github.com/yunshu0909/CodePal/releases/latest) [![license](https://img.shields.io/badge/license-ISC-green)](#license)
 
 <p align="center">
   <img src="docs/images/usage.webp" width="860" alt="CodePal 用量监测：按月历看每天用了多少 Token">
@@ -233,7 +233,7 @@ CodePal/
 
 - 🛠 Skills 管理换成 macOS 原生风格双栏：装载总览看两个工具各装了多少、占多少上下文；左栏按近 30 天用没用分组；详情里每个工具一个开关
 - 🔧 修复：Codex 的 Skill 开关以前写进配置但 Codex 不认，现在改走 Codex 官方接口，写完核对，要么生效要么失败；以前关了没生效的会自动补关（先备份配置）
-- 🧹 下线 Plugins 管理页，插件的安装和开关交还各工具自己的命令行
+- 🧹 插件页下线：插件的安装和开关交还各工具自己的命令行
 - 📄 文档查阅：子目录在根目录下正确缩进
 
 **v2.1.2**
