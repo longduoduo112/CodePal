@@ -32,7 +32,7 @@ INPUT=""
 [ -t 0 ] || INPUT=$(cat)
 # 一次性从 stdin 提取 4 个字段：session_id / cwd / 原始 prompt / 问题(tool_input)
 META=$(printf '%s' "$INPUT" | "$PYBIN" -c "
-import sys, json
+import sys, json, re
 def clip(s, n):
     return ' '.join((s or '').split())[:n]   # 压平空白并截断，避免 tab/换行污染
 try:
@@ -46,6 +46,17 @@ raw = d.get('prompt') or ''
 marker = '## My request for Codex:'
 if marker in raw:
     raw = raw.split(marker, 1)[1]
+# 通知仍沿原流程更新状态，只阻止它覆盖用户的任务摘要。
+# 规则随模板同步到脚本旁边；缺失/损坏时保留摘要，不能丢掉 sid/cwd 后另写一条幽灵会话。
+try:
+    with open(sys.argv[1], encoding='utf-8') as f:
+        system_prefixes = json.load(f)
+    if any(raw.lstrip().startswith(prefix) for prefix in system_prefixes):
+        raw = ''
+except (OSError, ValueError, TypeError):
+    raw = ''
+# 只去 Claude 的粘贴包装，内容里的 HTML/XML 和用户前后补的话原样保留。
+raw = re.sub(r'</?pasted_content\b[^>]*>', '', raw)
 raw = '\n'.join(l for l in raw.splitlines() if not l.lstrip().startswith('#'))
 prompt = ' '.join(raw.split())[:1200]
 q = ''
@@ -54,7 +65,7 @@ qs = ti.get('questions') if isinstance(ti, dict) else None
 if isinstance(qs, list) and qs and isinstance(qs[0], dict):
     q = clip(qs[0].get('question') or qs[0].get('header'), 60)
 print('\t'.join([sid, cwd, prompt, q]))
-" 2>/dev/null)
+" "$(dirname "$0")/system-message-prefixes.json" 2>/dev/null)
 SID=$(printf '%s' "$META" | cut -f1)
 CWD=$(printf '%s' "$META" | cut -f2)
 PROMPT=$(printf '%s' "$META" | cut -f3)

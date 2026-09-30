@@ -17,6 +17,8 @@ const path = require('path')
 const os = require('os')
 const { backgroundProjectsDir: resolveBackgroundProjectsDir } = require('../platform/modelPaths')
 const { readHeadLines, scanBackward, scanForward } = require('./sessionFileReader')
+// 与已安装的会话钩子共享前缀，避免两处把同一条系统注入判成不同来源。
+const SYSTEM_MESSAGE_PREFIXES = require('../../templates/k28-status-light/system-message-prefixes.json')
 
 const HEAD_BYTES = 64 * 1024
 const TAIL_BYTES = 256 * 1024
@@ -80,12 +82,7 @@ function decodeProjectName(encoded) {
 function isSystemTagMessage(text) {
   if (!text) return true
   const t = text.trimStart()
-  return t.startsWith('<local-command-')
-    || t.startsWith('<command-name>')
-    || t.startsWith('<command-message>')
-    || t.startsWith('<command-args>')
-    || t.startsWith('<system-reminder>')
-    || t.startsWith('Base directory for this skill:')
+  return SYSTEM_MESSAGE_PREFIXES.some((prefix) => t.startsWith(prefix))
 }
 
 /** 把内容块数组或字符串里的文字拼起来 */
