@@ -343,6 +343,14 @@ export const dataStore = {
 
   // ==================== 中央仓库路径管理（委托 repoPathManager） ====================
 
+  /**
+   * 同步读取已加载配置中的资产库路径，供页面第一帧选择内存缓存。
+   * @returns {string|null} 未加载配置时返回 null，不触发配置读写
+   */
+  getCachedRepoPath() {
+    return configCache ? configCache.repoPath || DEFAULT_REPO_PATH : null
+  },
+
   async getRepoPath() {
     return repoPathManager.getRepoPath()
   },

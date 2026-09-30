@@ -1,99 +1,80 @@
 /**
  * Skill 控制中心状态 Hook
- *
- * 只通过统一 IPC 读取与写入；请求序号抑制 watcher/手动刷新造成的旧响应回写。
- * 写操作失败时如果主进程带回了新快照，也用它（开关状态不确定时按实际显示）。
- *
+ * - 从本次运行共享缓存订阅，回访第一帧显示最近结果，再核对实际状态
+ * - 所有读取和命令由同一协调器处理，卸载仅退订，不丢失进行中的操作
  * @module hooks/useSkillControl
  */
-
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { dataStore } from '../store/data'
+import { getSkillControlCache } from '../store/services/skillControlCache'
 
+/**
+ * @param {number} [refreshSignal=0] 既有外部重读信号
+ * @returns {object} 快照、操作及浏览状态
+ */
 export default function useSkillControl(refreshSignal = 0) {
-  const [status, setStatus] = useState('loading')
-  const [snapshot, setSnapshot] = useState(null)
-  const [error, setError] = useState(null)
-  const [pendingKeys, setPendingKeys] = useState(() => new Set())
-  const requestIdRef = useRef(0)
-  const repoPathRef = useRef(null)
+  const api = typeof window !== 'undefined' ? window.electronAPI : null
+  const cache = getSkillControlCache(api)
+  // 配置缓存未就绪时先显示未知上下文，不能把其它资产库闪到第一帧。
+  const hint = dataStore.getCachedRepoPath ? dataStore.getCachedRepoPath() : cache.lastRepoPath
+  const hintRef = useRef(hint)
+  hintRef.current = hint
+  const [resolution, setResolution] = useState(null)
+  const repoPath = hint || (resolution?.hint === hint ? resolution.repoPath : null)
+  const target = cache.entry(repoPath)
+  const mounted = useRef(false)
+  const subscribe = useCallback((listener) => cache.subscribe(target, listener), [cache, target])
+  const getSnapshot = useCallback(() => target.state, [target])
+  const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
-  const refresh = useCallback(async ({ silent = false } = {}) => {
-    const api = typeof window !== 'undefined' ? window.electronAPI : null
-    if (!api?.getSkillControlSnapshot) {
-      setError('API_NOT_AVAILABLE')
-      setStatus('error')
-      return { success: false, error: 'API_NOT_AVAILABLE' }
-    }
-    const requestId = ++requestIdRef.current
-    if (!silent) setStatus('loading')
+  const resolveContext = useCallback(async () => {
+    const resolvedPath = await dataStore.getRepoPath()
+    cache.lastRepoPath = resolvedPath
+    if (mounted.current) setResolution({ hint: hintRef.current, repoPath: resolvedPath })
+    return { repoPath: resolvedPath, target: cache.entry(resolvedPath) }
+  }, [cache])
+
+  const load = useCallback((path) => {
+    if (!api?.getSkillControlSnapshot) return Promise.resolve({ success: false, error: 'API_NOT_AVAILABLE' })
+    return api.getSkillControlSnapshot({ repoPath: path, projectRoots: [] })
+  }, [api])
+
+  const resolveActiveContext = useCallback(() => hintRef.current
+    ? { repoPath: hintRef.current, target: cache.entry(hintRef.current) }
+    : resolveContext(), [cache, resolveContext])
+
+  const refresh = useCallback(async ({ acceptWriteSnapshot = false } = {}) => {
     try {
-      const repoPath = await dataStore.getRepoPath()
-      repoPathRef.current = repoPath
-      const result = await api.getSkillControlSnapshot({ repoPath, projectRoots: [] })
-      if (requestId !== requestIdRef.current) return { success: false, error: 'STALE_REQUEST' }
-      if (!result?.success || !result.data) {
-        const nextError = result?.error || 'SKILL_CONTROL_SCAN_FAILED'
-        setError(nextError)
-        setStatus('error')
-        return { success: false, error: nextError }
-      }
-      setSnapshot(result.data)
-      setError(null)
-      setStatus('ready')
-      return { success: true, data: result.data }
-    } catch (loadError) {
-      if (requestId !== requestIdRef.current) return { success: false, error: 'STALE_REQUEST' }
-      const nextError = loadError?.message || 'SKILL_CONTROL_SCAN_FAILED'
-      setError(nextError)
-      setStatus('error')
-      return { success: false, error: nextError }
+      const resolved = resolveActiveContext()
+      const context = resolved?.then ? await resolved : resolved
+      return await cache.refresh(context.target, () => load(context.repoPath), { acceptWriteSnapshot })
+    } catch (error) {
+      return cache.refresh(cache.entry(null), () => ({ success: false, error: error?.message || 'SKILL_CONTROL_SCAN_FAILED' }))
     }
-  }, [])
+  }, [cache, load, resolveActiveContext])
 
   useEffect(() => {
-    refresh({ silent: Boolean(snapshot) })
-    // snapshot 只控制刷新动画，不应触发下一轮读取。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    mounted.current = true
+    refresh({ acceptWriteSnapshot: true })
+    return () => { mounted.current = false }
   }, [refresh, refreshSignal])
 
   const execute = useCallback(async ({ skillName, toolId, action, source, ...options }) => {
-    const operationKey = `${skillName}:${toolId}`
-    setPendingKeys((previous) => new Set(previous).add(operationKey))
     try {
-      const api = typeof window !== 'undefined' ? window.electronAPI : null
-      if (!api?.executeSkillCommand) return { success: false, error: 'API_NOT_AVAILABLE' }
-      const repoPath = repoPathRef.current || await dataStore.getRepoPath()
-      const result = await api.executeSkillCommand({ repoPath, skillName, toolId, action, source, projectRoots: [], ...options })
-      if (!result?.success) {
-        // 失败时主进程会尽量带回一份新快照（状态不确定时要按实际显示）
-        if (result?.snapshot) {
-          requestIdRef.current += 1
-          setSnapshot(result.snapshot)
-          setError(null)
-          setStatus('ready')
-        }
-        return { success: false, error: result?.error || 'SKILL_CONTROL_COMMAND_FAILED', snapshot: result?.snapshot || null }
-      }
-      if (result.snapshot) {
-        requestIdRef.current += 1
-        setSnapshot(result.snapshot)
-        setError(null)
-        setStatus('ready')
-      } else {
-        await refresh({ silent: true })
-      }
-      return result
-    } catch (operationError) {
-      return { success: false, error: operationError?.message || 'SKILL_CONTROL_COMMAND_FAILED' }
-    } finally {
-      setPendingKeys((previous) => {
-        const next = new Set(previous)
-        next.delete(operationKey)
-        return next
+      const context = await resolveActiveContext()
+      const result = await cache.execute(context.target, `${skillName}:${toolId}`, () => {
+        if (!api?.executeSkillCommand) return { success: false, error: 'API_NOT_AVAILABLE' }
+        return api.executeSkillCommand({ repoPath: context.repoPath, skillName, toolId, action, source, projectRoots: [], ...options })
       })
+      if (result.success && !result.snapshot) await cache.refresh(context.target, () => load(context.repoPath))
+      return result
+    } catch (error) {
+      return { success: false, error: error?.message || 'SKILL_CONTROL_COMMAND_FAILED' }
     }
-  }, [refresh])
+  }, [api, cache, load, resolveActiveContext])
+
+  const setQuery = useCallback((query) => cache.setBrowsing(target, { query }), [cache, target])
+  const setSelectedId = useCallback((selectedId) => cache.setBrowsing(target, { selectedId }), [cache, target])
 
   const setActivation = useCallback(({ skillName, toolId, enabled, source }) => execute({
     skillName,
@@ -118,5 +99,5 @@ export default function useSkillControl(refreshSignal = 0) {
     return { success: failed.length === 0, adopted, failed }
   }, [adoptExternalSkill])
 
-  return { status, snapshot, error, pendingKeys, refresh, execute, setActivation, adoptExternalSkill, adoptExternalSkills }
+  return { ...state, refresh, execute, setQuery, setSelectedId, setActivation, adoptExternalSkill, adoptExternalSkills }
 }

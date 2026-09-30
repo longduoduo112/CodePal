@@ -62,15 +62,17 @@ export default function SkillsPage({ refreshSignal = 0 }) {
     status,
     snapshot,
     pendingKeys,
+    selectedId,
+    setSelectedId,
+    query,
+    setQuery,
+    refreshState,
     refresh,
     execute,
     setActivation,
     adoptExternalSkill,
     adoptExternalSkills,
   } = useSkillControl(refreshSignal)
-  const [selectedId, setSelectedId] = useState(OVERVIEW_ID)
-  const [query, setQuery] = useState('')
-  const [refreshState, setRefreshState] = useState('idle')
   const [usageToken, setUsageToken] = useState(0)
   const [adoptingAll, setAdoptingAll] = useState(false)
   const searchRef = useRef(null)
@@ -85,10 +87,15 @@ export default function SkillsPage({ refreshSignal = 0 }) {
   const groups = useMemo(() => buildGroups(skills, { usageMap, usageFailed, query: query.trim() }), [skills, usageMap, usageFailed, query])
   const selectedSkill = selectedId === OVERVIEW_ID ? null : skills.find((skill) => skill.name === selectedId) || null
   const records = useRecords(selectedSkill && (selectedSkill.managed || isExternal(selectedSkill)) ? selectedSkill.name : null, usageToken)
+  // 详情沿用全局提示，避免为后台读取新增详情布局。
+  useEffect(() => {
+    if (selectedSkill && refreshState === 'error') toast.error('读取失败，下面是上次读到的结果')
+  }, [selectedSkill, refreshState])
+
   // 选中的 Skill 没了（删了）：回到总览
   useEffect(() => {
     if (snapshot && selectedId !== OVERVIEW_ID && !skills.some((skill) => skill.name === selectedId)) setSelectedId(OVERVIEW_ID)
-  }, [snapshot, skills, selectedId])
+  }, [snapshot, skills, selectedId, setSelectedId])
 
   // ⌘F / Ctrl+F 聚焦搜索框
   useEffect(() => {
@@ -103,10 +110,8 @@ export default function SkillsPage({ refreshSignal = 0 }) {
   }, [])
 
   const handleRefresh = useCallback(async () => {
-    setRefreshState('busy')
     setUsageToken((token) => token + 1)
-    const result = await refresh({ silent: true })
-    setRefreshState(result.success ? 'idle' : 'error')
+    await refresh({ silent: true })
   }, [refresh])
 
   const handleToggle = useCallback(async (skill, toolId, enabled) => {
@@ -186,7 +191,7 @@ export default function SkillsPage({ refreshSignal = 0 }) {
       return
     }
     toast.error('删除失败，什么都没改')
-  }, [execute])
+  }, [execute, setSelectedId])
 
   const loading = status === 'loading' && !snapshot
   const failed = status === 'error' && !snapshot
